@@ -351,26 +351,34 @@ input:checked + .toggle-slider:before {
 </div>
     <div id="helpContent" style="padding: 0 16px 16px 16px; border-top: 1px solid #dee2e6; display: none;">
         <div style="font-size: 0.75rem; line-height: 1.5; color: #333;">
-            <p>This dashboard enables scheduling coordinators to efficiently build conflict-free course schedules, manage faculty and faculty assistants workloads, and perform automated compliance auditing.</p>
-            
-            <p><strong>GETTING STARTED:</strong><br>
-            <strong>1. Course Catalog</strong> – Download the sample CSV, preserve all 7 column headers exactly. Edit with as per your department's data, then upload.<br>
-            <strong>2. Prerequisites/Co-requisites</strong> – Download the sample CSV, maintain the header structure. Define course dependencies to enable student view year-level recommendations.<br>
-            <strong>3. Schedule</strong> – Download the sample schedule CSV, or load previously published semesters from the dropdown. Build your schedule by editing directly in the table or using the "Add Course" bar.</p>
-            
-            <p><strong>AUDIT VISUALIZATION (Instructor/TA Coloring):</strong><br>
-            • <strong>INSTRUCTOR NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total theoretical teaching hours across all assigned courses is ≥6 for Sciences and ≥9 for Humanities . Turn <span style="color:#c62828; font-weight:bold;">RED</span> when below 6 hours for Sciences and 9 for Humanities.<br>
-            • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total practical hours ≥9. If a TA is assigned to a course WITHOUT an instructor, their theoretical + practical hours are summed and must be ≥9 to turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span>. Otherwise, <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
-            
-            <p><strong>CONFLICT DETECTION:</strong><br>
-            • Room & Time conflicts are automatically highlighted in <span style="background:#fff0f0;">red rows</span><br>
-            • Instructor double-booking conflicts are flagged<br>
-            • Co-requisite violations appear in <span style="background:#ffe0b3;">orange rows</span> (admin override available)</p>
-            
-            <p><strong>STUDENT VIEW:</strong> Toggle to "Student" mode to see which courses are offered versus missing for each class year (Freshman through Senior), based on prerequisite depth analysis.</p>
-            
-            <p><em>Use column filters to search, click column headers to sort, publish completed semesters for future reuse.</em></p>
-        </div>
+    <p>This dashboard enables scheduling coordinators to efficiently build conflict-free course schedules, manage faculty and teaching assistant workloads, generate scheduling reports, and perform automated compliance auditing.</p>
+    
+    <p><strong>GETTING STARTED:</strong><br>
+    <strong>1. Course Catalog</strong> – Download the template CSV and preserve all column headers exactly as provided. Populate the file using your department’s course catalog, then upload it into the system.<br>
+    <strong>2. Prerequisites/Co-requisites</strong> – Download the template CSV and maintain the header structure. Define prerequisite and co-requisite relationships to enable automated student-level recommendations and compliance checks.<br>
+    <strong>3. Schedule</strong> – Download the template schedule CSV or load a previously published semester from the dropdown menu. Populate course offerings manually or edit them directly within the dashboard using the Add Course interface.</p>
+    
+    <p><strong>CALENDAR VISUALIZATION:</strong><br>
+    • Course blocks are automatically color-coded based on course category and sub-category as defined in the uploaded catalog.<br>
+    • Click any course block to view course details and edit scheduling information.</p>
+    
+    <p><strong>AUDIT VISUALIZATION (Instructor/TA Coloring):</strong><br>
+    • <strong>INSTRUCTOR NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total theoretical teaching hours across all assigned courses are ≥6 for Sciences and ≥9 for Humanities. Turn <span style="color:#c62828; font-weight:bold;">RED</span> when below the required threshold.<br>
+    • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total practical hours are ≥9. If a TA is assigned to a course without an instructor, both theoretical and practical hours are combined toward the workload threshold. Otherwise, the name appears <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
+    
+    <p><strong>CONFLICT DETECTION:</strong><br>
+    • Room and time conflicts are automatically highlighted.<br>
+    • Instructor double-booking conflicts are flagged automatically.<br>
+    • Co-requisite violations appear as warnings, with administrator override available.</p>
+
+    <p><strong>REPORTS:</strong><br>
+    • Export Faculty Loads, TA Loads, and Room Utilization reports directly as CSV files.</p>
+    
+    <p><strong>STUDENT VIEW:</strong><br>
+    Toggle to Student mode to visualize offered and missing courses by class standing (Freshman through Senior) based on prerequisite depth analysis.</p>
+    
+    <p><em>Use column filters to search, sortable columns to organize data, and publish completed semesters for future reuse.</em></p>
+</div>
     </div>
 </div>
 
@@ -1426,11 +1434,6 @@ function loadCatalogFromCSV(file){
 
         downloadCSVReport("rooms.csv", headers, rows);
     }
-
-    function loadDefaultSampleSchedule(){ let sample=[ ["1600100","01A","INTRODUCTION TO DESIGN STUDIO","VCD",4,"135","14:00","16:50","AD","C3","SARAH ALFALAH",""], ["1600101","02A","INTRO TO DESIGN THEORY","VCD",3,"135","10:00","10:50","AD","G12E","LAMIS BEHBEHANI","ZAINA"], ["1630240","01A","STUDIO INTERIOR ARCHITECTURE I","IA",5,"135","14:00","16:50","AD","D4","LAMIS BEHBEHANI",""], ["1620240","01A","DESIGN STUDIO I","VCD",4,"135","09:00","11:50","AD","C4","AHMAD ALOUMI",""], ["1600102","01A","REPRESENTATION STUDIO I","VCD",3,"135","14:00","16:50","AD","C3","SARAH ALFALAH",""] ]; currentSchedule=sample.map(row=>({ id:generateId(), courseNo:row[0], section:row[1], courseName:row[2], dept:row[3], credits:parseInt(row[4]), days:row[5], start:row[6], end:row[7], building:row[8], room:row[9], instructor:row[10], ta:row[11] })); updateDepartmentDropdowns(); updateInstructorDropdown(); rerenderAdminSchedule(); showToast("Loaded sample schedule"); }
-    function downloadSampleCSV(){ let headers="courseNo,section,courseName,dept,credits,days,start,end,building,room,instructor,ta\n"; let sample="1600100,01A,INTRODUCTION TO DESIGN STUDIO,VCD,4,135,14:00,16:50,AD,C3,SARAH ALFALAH,\n1630240,01A,STUDIO INTERIOR ARCHITECTURE I,IA,5,135,14:00,16:50,AD,D4,LAMIS BEHBEHANI,"; let blob=new Blob([headers+sample],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="schedule_template.csv"; a.click(); }
-    function downloadSampleCatalog(){ let headers="course_code,course_title,theoretical_hours,practical_hours,credits,category,sub_category\n"; let sample="1600100,Introduction to Design Studio,2,4,4,Major,Core\n1600101,Introduction to Design Theory & Criticism,3,0,3,Major,History & Theory"; let blob=new Blob([headers+sample],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="course_catalog_template.csv"; a.click(); }
-    function downloadSampleRulesCSV(){ let headers="rule_id,course_code,course_title,requirement_type,required_code,required_title,minimum_credits,notes\n"; let sample="R001,1600100,Introduction to Design Studio,prerequisite,9988090,English I,,"; let blob=new Blob([headers+sample],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="prerequisites_template.csv"; a.click(); }
     function initThresholdToggle() {
     const toggle = document.getElementById("thresholdModeToggle");
     if(toggle) {
