@@ -15,6 +15,13 @@
         .role-btn { border: none; background: #eef2f7; padding: 6px 18px; border-radius: 30px; font-weight: 500; font-size: 0.85rem; cursor: pointer; }
         .role-btn.active { background: #1e466e; color: white; }
         .hist-select { padding: 6px 12px; border-radius: 30px; border: 1px solid #ccc; background: white; font-size: 0.85rem; cursor: pointer; }
+
+        .reports-menu { position: relative; display: inline-block; }
+        .reports-btn { background: #1e466e; color: white; padding: 6px 18px; border-radius: 30px; font-size: 0.85rem; }
+        .reports-dropdown { display: none; position: absolute; right: 0; top: 34px; min-width: 180px; background: white; border: 1px solid #dbe2ea; border-radius: 12px; box-shadow: 0 8px 20px rgba(15,23,42,0.14); z-index: 1000; overflow: hidden; }
+        .reports-menu:hover .reports-dropdown { display: block; }
+        .reports-dropdown button { width: 100%; text-align: left; background: white; color: #1e2a3e; border-radius: 0; padding: 9px 12px; font-size: 0.75rem; }
+        .reports-dropdown button:hover { background: #eef4fb; }
         .toggle-conflict-bar, .add-course-bar, .publish-bar, .csv-upload-area, .rules-upload-area, .catalog-upload-area { background: white; border-radius: 16px; padding: 12px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border: 1px solid #ddd; }
         .catalog-upload-area { background: white; border-color: white; }
         .rules-upload-area { background: white; border-color: white; }
@@ -271,13 +278,6 @@ input:checked + .toggle-slider:before {
         .calendar-event-meta { font-size: 0.65rem; line-height: 1.3; color: #34506d; }
         .calendar-event-meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         /* Student calendar safety override: keep all student-facing event blocks neutral, regardless of inherited audit/conflict/missing classes. */
-        .calendar-shell.student-calendar .calendar-event,
-        .calendar-shell.student-calendar .calendar-event.conflict,
-        .calendar-shell.student-calendar .calendar-event.coreq {
-            background: #e8f1fb !important;
-            border-color: #b8d1f0 !important;
-            box-shadow: 0 2px 8px rgba(30,70,110,0.08) !important;
-        }
         .calendar-shell.student-calendar .calendar-event *,
         .calendar-shell.student-calendar .instructor-red,
         .calendar-shell.student-calendar .missing-badge,
@@ -333,6 +333,14 @@ input:checked + .toggle-slider:before {
                 <button class="view-btn" data-view="calendar">Calendar</button>
             </div>
             <select id="historicalSelect" class="hist-select"><option value="">-- Load Semester --</option></select>
+            <div class="reports-menu">
+                <button type="button" class="reports-btn">Reports ▾</button>
+                <div class="reports-dropdown">
+                    <button type="button" onclick="downloadFacultyLoadsCSV()">Loads – Faculty</button>
+                    <button type="button" onclick="downloadTALoadsCSV()">Loads – TA</button>
+                    <button type="button" onclick="downloadRoomsCSV()">Rooms</button>
+                </div>
+            </div>
             <button onclick="hardReset()" style="background: #dc3545; padding: 6px 18px; border-radius: 30px;">Hard Reset Everything</button>
         </div>
     </div>
@@ -815,18 +823,36 @@ function goBack() {
             wrap._calendarStickySync = null;
         }
     }
-    function getEventColor(course, index) {
-        const palette = [
-            { bg: '#e8f1fb', border: '#b8d1f0' },
-            { bg: '#eaf7ee', border: '#bfe2c8' },
-            { bg: '#fff4e8', border: '#f2d2b0' },
-            { bg: '#f3ecfb', border: '#d5c1f0' },
-            { bg: '#ebf7f7', border: '#b8e0df' },
-            { bg: '#eef4fb', border: '#c7d8ee' }
-        ];
-        let deptSeed = String(course.dept || course.courseNo || index).split('').reduce((a, ch) => a + ch.charCodeAt(0), 0);
-        return palette[deptSeed % palette.length];
+    const categoryColorMap = new Map();
+
+function getEventColor(course, index) {
+    const palette = [
+        { bg: '#e8f1fb', border: '#b8d1f0' },
+        { bg: '#eaf7ee', border: '#bfe2c8' },
+        { bg: '#fff4e8', border: '#f2d2b0' },
+        { bg: '#f3ecfb', border: '#d5c1f0' },
+        { bg: '#ebf7f7', border: '#b8e0df' },
+        { bg: '#eef4fb', border: '#c7d8ee' },
+        { bg: '#fff0f0', border: '#f3b5b5' },
+        { bg: '#f5f5dc', border: '#d8d8a8' }
+    ];
+
+    const info = getCatalogInfo(course.courseNo);
+
+    const categoryKey = [
+        info?.category || course.dept || "Uncategorized",
+        info?.sub_category || ""
+    ].join(" - ").trim();
+
+    if(!categoryColorMap.has(categoryKey)) {
+        categoryColorMap.set(
+            categoryKey,
+            palette[categoryColorMap.size % palette.length]
+        );
     }
+
+    return categoryColorMap.get(categoryKey);
+}
     function buildConflictMaps(schedule) {
         const detailed = detectConflictsWithDetails(schedule);
         const conflictMap = new Map();
@@ -1044,8 +1070,8 @@ function goBack() {
                 let instructor = course.instructor || 'TBD';
                 let conflictText = (currentRole === 'admin' && conflictMap.has(course.id)) ? `<div>Conflict flagged</div>` : '';
                 let coreqText = ''; // Co-req block styling/text intentionally disabled in calendar view; warnings remain in the section below.
-                const eventBgColor = currentRole === 'student' ? '#e8f1fb' : color.bg;
-                const eventBorderColor = currentRole === 'student' ? '#b8d1f0' : color.border;
+                const eventBgColor = color.bg;
+                const eventBorderColor = color.border;
                 html += `<div class="${classes.join(' ')}" data-id="${course.id}" style="top:${top}px;height:${height}px;width:${widthCalc};left:${leftCalc};background:${eventBgColor};border-color:${eventBorderColor};">
                     <div class="calendar-event-title">${title}</div>
                     <div class="calendar-event-meta">
@@ -1284,6 +1310,123 @@ function loadCatalogFromCSV(file){
     function deletePublishedSchedule(){ let sel=document.getElementById("historicalSelect").value; if(!sel || !publishedSemesters[sel]){ alert("Select a published semester"); return; } if(confirm(`Delete ${sel}?`)){ delete publishedSemesters[sel]; localStorage.setItem("publishedSemesters",JSON.stringify(publishedSemesters)); if(currentView===sel){ currentSchedule=[]; renderTable([],false); } updateDropdown(); showToast(`Deleted ${sel}`); } }
     function updateDropdown(){ let select=document.getElementById("historicalSelect"); let opts='<option value="">-- Load Semester --</option>'; for(let [year] of Object.entries(publishedSemesters)) opts+=`<option value="${year}">${year} (Published)</option>`; select.innerHTML=opts; if(currentView && publishedSemesters[currentView]) select.value=currentView; else select.value=""; }
     function downloadScheduleAsCSV() { if (!currentSchedule.length) { alert("No schedule to download."); return; } let headers = ["courseNo","section","courseName","dept","credits","days","start","end","building","room","instructor","ta"]; let csvRows = [headers.join(",")]; for (let c of currentSchedule) { let row = headers.map(h => { let val = c[h] !== undefined && c[h] !== null ? c[h] : ""; val = String(val); if (val.includes(",") || val.includes("\"")) val = `"${val.replace(/"/g, '""')}"`; return val; }); csvRows.push(row.join(",")); } let blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" }); let a = document.createElement("a"); let url = URL.createObjectURL(blob); a.href = url; a.download = "schedule_export.csv"; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast("Schedule exported as CSV"); }
+
+
+    function csvEscape(value) {
+        let val = value === undefined || value === null ? "" : String(value);
+        if (val.includes(",") || val.includes("\"") || val.includes("\n")) {
+            val = `"${val.replace(/"/g, '""')}"`;
+        }
+        return val;
+    }
+
+    function downloadCSVReport(filename, headers, rows) {
+        if (!currentSchedule.length) {
+            alert("No schedule loaded.");
+            return;
+        }
+        let csvRows = [headers.join(",")];
+        rows.forEach(row => {
+            csvRows.push(headers.map(h => csvEscape(row[h])).join(","));
+        });
+        let blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+        let a = document.createElement("a");
+        let url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast(`${filename} downloaded`);
+    }
+
+    function getAssignedCourseLabel(course) {
+        return `${course.courseNo || ""}-${course.section || ""}`.replace(/-$/, "");
+    }
+
+    function downloadFacultyLoadsCSV() {
+        const loads = new Map();
+        currentSchedule.forEach(course => {
+            const name = (course.instructor || "").trim();
+            if (!name || name === "TBD") return;
+
+            const info = getCatalogInfo(course.courseNo);
+            const theo = info ? (parseFloat(info.theoretical_hours) || 0) : 0;
+            const prac = 0;
+
+            if (!loads.has(name)) {
+                loads.set(name, { "Name": name, "Theoretical Hours": 0, "Practical Hours": 0, "Total Hours": 0, "Assigned Courses": [] });
+            }
+            const item = loads.get(name);
+            item["Theoretical Hours"] += theo;
+            item["Practical Hours"] += prac;
+            item["Total Hours"] = item["Theoretical Hours"] + item["Practical Hours"];
+            item["Assigned Courses"].push(getAssignedCourseLabel(course));
+        });
+
+        const headers = ["Name", "Theoretical Hours", "Practical Hours", "Total Hours", "Assigned Courses"];
+        const rows = Array.from(loads.values())
+            .sort((a, b) => a["Name"].localeCompare(b["Name"]))
+            .map(row => ({ ...row, "Assigned Courses": row["Assigned Courses"].join("; ") }));
+
+        downloadCSVReport("loads_faculty.csv", headers, rows);
+    }
+
+    function downloadTALoadsCSV() {
+        const loads = new Map();
+        currentSchedule.forEach(course => {
+            const name = (course.ta || "").trim();
+            if (!name) return;
+
+            const info = getCatalogInfo(course.courseNo);
+            const theo = info ? (parseFloat(info.theoretical_hours) || 0) : 0;
+            const prac = info ? (parseFloat(info.practical_hours) || 0) : 0;
+            const hasInstructor = course.instructor && course.instructor !== "TBD";
+
+            if (!loads.has(name)) {
+                loads.set(name, { "Name": name, "Theoretical Hours": 0, "Practical Hours": 0, "Total Hours": 0, "Assigned Courses": [] });
+            }
+            const item = loads.get(name);
+            item["Theoretical Hours"] += hasInstructor ? 0 : theo;
+            item["Practical Hours"] += prac;
+            item["Total Hours"] = item["Theoretical Hours"] + item["Practical Hours"];
+            item["Assigned Courses"].push(getAssignedCourseLabel(course));
+        });
+
+        const headers = ["Name", "Theoretical Hours", "Practical Hours", "Total Hours", "Assigned Courses"];
+        const rows = Array.from(loads.values())
+            .sort((a, b) => a["Name"].localeCompare(b["Name"]))
+            .map(row => ({ ...row, "Assigned Courses": row["Assigned Courses"].join("; ") }));
+
+        downloadCSVReport("loads_ta.csv", headers, rows);
+    }
+
+    function downloadRoomsCSV() {
+        const headers = ["Building", "Room", "Days", "Start", "End", "Course No", "Section", "Course Name", "Instructor", "TA"];
+        const rows = [...currentSchedule]
+            .sort((a, b) =>
+                String(a.building || "").localeCompare(String(b.building || ""), undefined, { numeric: true }) ||
+                String(a.room || "").localeCompare(String(b.room || ""), undefined, { numeric: true }) ||
+                String(a.days || "").localeCompare(String(b.days || ""), undefined, { numeric: true }) ||
+                (toMinutes(a.start || "00:00") - toMinutes(b.start || "00:00"))
+            )
+            .map(course => ({
+                "Building": course.building || "",
+                "Room": course.room || "",
+                "Days": course.days || "",
+                "Start": course.start || "",
+                "End": course.end || "",
+                "Course No": course.courseNo || "",
+                "Section": course.section || "",
+                "Course Name": course.courseName || "",
+                "Instructor": course.instructor || "",
+                "TA": course.ta || ""
+            }));
+
+        downloadCSVReport("rooms.csv", headers, rows);
+    }
+
     function loadDefaultSampleSchedule(){ let sample=[ ["1600100","01A","INTRODUCTION TO DESIGN STUDIO","VCD",4,"135","14:00","16:50","AD","C3","SARAH ALFALAH",""], ["1600101","02A","INTRO TO DESIGN THEORY","VCD",3,"135","10:00","10:50","AD","G12E","LAMIS BEHBEHANI","ZAINA"], ["1630240","01A","STUDIO INTERIOR ARCHITECTURE I","IA",5,"135","14:00","16:50","AD","D4","LAMIS BEHBEHANI",""], ["1620240","01A","DESIGN STUDIO I","VCD",4,"135","09:00","11:50","AD","C4","AHMAD ALOUMI",""], ["1600102","01A","REPRESENTATION STUDIO I","VCD",3,"135","14:00","16:50","AD","C3","SARAH ALFALAH",""] ]; currentSchedule=sample.map(row=>({ id:generateId(), courseNo:row[0], section:row[1], courseName:row[2], dept:row[3], credits:parseInt(row[4]), days:row[5], start:row[6], end:row[7], building:row[8], room:row[9], instructor:row[10], ta:row[11] })); updateDepartmentDropdowns(); updateInstructorDropdown(); rerenderAdminSchedule(); showToast("Loaded sample schedule"); }
     function downloadSampleCSV(){ let headers="courseNo,section,courseName,dept,credits,days,start,end,building,room,instructor,ta\n"; let sample="1600100,01A,INTRODUCTION TO DESIGN STUDIO,VCD,4,135,14:00,16:50,AD,C3,SARAH ALFALAH,\n1630240,01A,STUDIO INTERIOR ARCHITECTURE I,IA,5,135,14:00,16:50,AD,D4,LAMIS BEHBEHANI,"; let blob=new Blob([headers+sample],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="schedule_template.csv"; a.click(); }
     function downloadSampleCatalog(){ let headers="course_code,course_title,theoretical_hours,practical_hours,credits,category,sub_category\n"; let sample="1600100,Introduction to Design Studio,2,4,4,Major,Core\n1600101,Introduction to Design Theory & Criticism,3,0,3,Major,History & Theory"; let blob=new Blob([headers+sample],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="course_catalog_template.csv"; a.click(); }
