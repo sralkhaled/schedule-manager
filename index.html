@@ -15,13 +15,6 @@
         .role-btn { border: none; background: #eef2f7; padding: 6px 18px; border-radius: 30px; font-weight: 500; font-size: 0.85rem; cursor: pointer; }
         .role-btn.active { background: #1e466e; color: white; }
         .hist-select { padding: 6px 12px; border-radius: 30px; border: 1px solid #ccc; background: white; font-size: 0.85rem; cursor: pointer; }
-
-        .reports-menu { position: relative; display: inline-block; }
-        .reports-btn { background: #1e466e; color: white; padding: 6px 18px; border-radius: 30px; font-size: 0.85rem; }
-        .reports-dropdown { display: none; position: absolute; right: 0; top: 34px; min-width: 180px; background: white; border: 1px solid #dbe2ea; border-radius: 12px; box-shadow: 0 8px 20px rgba(15,23,42,0.14); z-index: 1000; overflow: hidden; }
-        .reports-menu:hover .reports-dropdown { display: block; }
-        .reports-dropdown button { width: 100%; text-align: left; background: white; color: #1e2a3e; border-radius: 0; padding: 9px 12px; font-size: 0.75rem; }
-        .reports-dropdown button:hover { background: #eef4fb; }
         .toggle-conflict-bar, .add-course-bar, .publish-bar, .csv-upload-area, .rules-upload-area, .catalog-upload-area { background: white; border-radius: 16px; padding: 12px 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border: 1px solid #ddd; }
         .catalog-upload-area { background: white; border-color: white; }
         .rules-upload-area { background: white; border-color: white; }
@@ -33,6 +26,21 @@
         .publish-btn { background: #2e7d32; }
         .delete-published-btn { background-color: #dc3545; }
         .sample-btn { background: #1e466e; color: white; text-decoration: none; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; display: inline-block; cursor: pointer; border: none; }
+        .report-option{
+    display:block;
+    width:100%;
+    border:none;
+    background:white;
+    color:#1e466e;
+    text-align:left;
+    padding:10px 14px;
+    font-size:0.75rem;
+    cursor:pointer;
+    border-radius:0;
+}
+.report-option:hover{
+    background:#f3f7fb;
+}
         .student-panel { background: white; border-radius: 20px; padding: 16px 24px; margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
         .year-selector { display: flex; gap: 10px; flex-wrap: wrap; }
         .year-badge { background: #eef2f7; padding: 6px 18px; border-radius: 40px; font-weight: 500; cursor: pointer; font-size: 0.85rem; }
@@ -333,14 +341,27 @@ input:checked + .toggle-slider:before {
                 <button class="view-btn" data-view="calendar">Calendar</button>
             </div>
             <select id="historicalSelect" class="hist-select"><option value="">-- Load Semester --</option></select>
-            <div class="reports-menu">
-                <button type="button" class="reports-btn">Reports ▾</button>
-                <div class="reports-dropdown">
-                    <button type="button" onclick="downloadFacultyLoadsCSV()">Loads – Faculty</button>
-                    <button type="button" onclick="downloadTALoadsCSV()">Loads – TA</button>
-                    <button type="button" onclick="downloadRoomsCSV()">Rooms</button>
-                </div>
-            </div>
+            <div style="position:relative;">
+    <button id="reportsBtn" class="sample-btn">Reports ▼</button>
+
+    <div id="reportsMenu" style="
+        display:none;
+        position:absolute;
+        top:38px;
+        right:0;
+        background:white;
+        border:1px solid #ddd;
+        border-radius:12px;
+        box-shadow:0 4px 12px rgba(0,0,0,0.12);
+        min-width:180px;
+        z-index:500;
+        overflow:hidden;
+    ">
+        <button class="report-option" data-report="faculty">Loads - Faculty</button>
+        <button class="report-option" data-report="ta">Loads - TA</button>
+        <button class="report-option" data-report="rooms">Rooms</button>
+    </div>
+</div>
             <button onclick="hardReset()" style="background: #dc3545; padding: 6px 18px; border-radius: 30px;">Hard Reset Everything</button>
         </div>
     </div>
@@ -351,34 +372,26 @@ input:checked + .toggle-slider:before {
 </div>
     <div id="helpContent" style="padding: 0 16px 16px 16px; border-top: 1px solid #dee2e6; display: none;">
         <div style="font-size: 0.75rem; line-height: 1.5; color: #333;">
-    <p>This dashboard enables scheduling coordinators to efficiently build conflict-free course schedules, manage faculty and teaching assistant workloads, generate scheduling reports, and perform automated compliance auditing.</p>
-    
-    <p><strong>GETTING STARTED:</strong><br>
-    <strong>1. Course Catalog</strong> – Download the template CSV and preserve all column headers exactly as provided. Populate the file using your department’s course catalog, then upload it into the system.<br>
-    <strong>2. Prerequisites/Co-requisites</strong> – Download the template CSV and maintain the header structure. Define prerequisite and co-requisite relationships to enable automated student-level recommendations and compliance checks.<br>
-    <strong>3. Schedule</strong> – Download the template schedule CSV or load a previously published semester from the dropdown menu. Populate course offerings manually or edit them directly within the dashboard using the Add Course interface.</p>
-    
-    <p><strong>CALENDAR VISUALIZATION:</strong><br>
-    • Course blocks are automatically color-coded based on course category and sub-category as defined in the uploaded catalog.<br>
-    • Click any course block to view course details and edit scheduling information.</p>
-    
-    <p><strong>AUDIT VISUALIZATION (Instructor/TA Coloring):</strong><br>
-    • <strong>INSTRUCTOR NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total theoretical teaching hours across all assigned courses are ≥6 for Sciences and ≥9 for Humanities. Turn <span style="color:#c62828; font-weight:bold;">RED</span> when below the required threshold.<br>
-    • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total practical hours are ≥9. If a TA is assigned to a course without an instructor, both theoretical and practical hours are combined toward the workload threshold. Otherwise, the name appears <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
-    
-    <p><strong>CONFLICT DETECTION:</strong><br>
-    • Room and time conflicts are automatically highlighted.<br>
-    • Instructor double-booking conflicts are flagged automatically.<br>
-    • Co-requisite violations appear as warnings, with administrator override available.</p>
-
-    <p><strong>REPORTS:</strong><br>
-    • Export Faculty Loads, TA Loads, and Room Utilization reports directly as CSV files.</p>
-    
-    <p><strong>STUDENT VIEW:</strong><br>
-    Toggle to Student mode to visualize offered and missing courses by class standing (Freshman through Senior) based on prerequisite depth analysis.</p>
-    
-    <p><em>Use column filters to search, sortable columns to organize data, and publish completed semesters for future reuse.</em></p>
-</div>
+            <p>This dashboard enables scheduling coordinators to efficiently build conflict-free course schedules, manage faculty and faculty assistants workloads, and perform automated compliance auditing.</p>
+            
+            <p><strong>GETTING STARTED:</strong><br>
+            <strong>1. Course Catalog</strong> – Download the sample CSV, preserve all 7 column headers exactly. Edit with as per your department's data, then upload.<br>
+            <strong>2. Prerequisites/Co-requisites</strong> – Download the sample CSV, maintain the header structure. Define course dependencies to enable student view year-level recommendations.<br>
+            <strong>3. Schedule</strong> – Download the sample schedule CSV, or load previously published semesters from the dropdown. Build your schedule by editing directly in the table or using the "Add Course" bar.</p>
+            
+            <p><strong>AUDIT VISUALIZATION (Instructor/TA Coloring):</strong><br>
+            • <strong>INSTRUCTOR NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total theoretical teaching hours across all assigned courses is ≥6 for Sciences and ≥9 for Humanities . Turn <span style="color:#c62828; font-weight:bold;">RED</span> when below 6 hours for Sciences and 9 for Humanities.<br>
+            • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total practical hours ≥9. If a TA is assigned to a course WITHOUT an instructor, their theoretical + practical hours are summed and must be ≥9 to turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span>. Otherwise, <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
+            
+            <p><strong>CONFLICT DETECTION:</strong><br>
+            • Room & Time conflicts are automatically highlighted in <span style="background:#fff0f0;">red rows</span><br>
+            • Instructor double-booking conflicts are flagged<br>
+            • Co-requisite violations appear in <span style="background:#ffe0b3;">orange rows</span> (admin override available)</p>
+            
+            <p><strong>STUDENT VIEW:</strong> Toggle to "Student" mode to see which courses are offered versus missing for each class year (Freshman through Senior), based on prerequisite depth analysis.</p>
+            
+            <p><em>Use column filters to search, click column headers to sort, publish completed semesters for future reuse.</em></p>
+        </div>
     </div>
 </div>
 
@@ -413,7 +426,6 @@ input:checked + .toggle-slider:before {
         <label>Schedule:</label>
         <input type="file" id="csvFileInput" accept=".csv">
         <button id="uploadCsvBtn">Load Schedule</button>
-        <button id="loadDefaultBtn" class="sample-btn">Load Sample Schedule</button>
         <button id="downloadSampleCsv" class="sample-btn">Download Sample Schedule</button>
         
         <div class="threshold-toggle-container">   <!-- RIGHT - inside the div -->
@@ -580,6 +592,19 @@ function goBack() {
 
     function generateId() { return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8); }
     
+    document.addEventListener("click", (e) => {
+    const menu = document.getElementById("reportsMenu");
+
+    if(e.target.id === "reportsBtn"){
+        menu.style.display = menu.style.display === "block" ? "none" : "block";
+        return;
+    }
+
+    if(!e.target.closest("#reportsMenu")){
+        menu.style.display = "none";
+    }
+});
+
     function hardReset() {
         courseCatalog = new Map(); prerequisites = []; currentSchedule = []; publishedSemesters = {}; currentView = ""; currentEditId = null; currentAdminView = "list";
         localStorage.clear(); sessionStorage.clear();
@@ -861,6 +886,27 @@ function getEventColor(course, index) {
 
     return categoryColorMap.get(categoryKey);
 }
+function buildCategoryLegend(schedule) {
+    const seen = new Set();
+
+    let items = schedule.map((course, index) => {
+        const info = getCatalogInfo(course.courseNo);
+
+        const categoryKey = [
+            info?.category || course.dept || "Uncategorized",
+            info?.sub_category || ""
+        ].join(" - ").trim();
+
+        if(seen.has(categoryKey)) return "";
+        seen.add(categoryKey);
+
+        const color = getEventColor(course, index);
+
+        return `<span><i class="calendar-dot" style="background:${color.bg};border:1px solid ${color.border};"></i> ${categoryKey}</span>`;
+    }).join("");
+
+    return items;
+}
     function buildConflictMaps(schedule) {
         const detailed = detectConflictsWithDetails(schedule);
         const conflictMap = new Map();
@@ -1030,11 +1076,13 @@ function getEventColor(course, index) {
                 if(eventsByDay.has(dayCode)) eventsByDay.get(dayCode).push({ course, index, dayCode });
             });
         });
-        let legendHtml = currentRole === "student" ? "" : `<div class="calendar-legend">
-                    <span><i class="calendar-dot" style="background:#e8f1fb;border:1px solid #b8d1f0;"></i> Scheduled class</span>
-                    <span><i class="calendar-dot" style="background:#fff;border:2px solid #d32f2f;"></i> Conflict</span>
-                    <span>Click a block to view course details${editable ? ' or edit' : ''}</span>
-                </div>`;
+        let categoryLegend = buildCategoryLegend(sortedSchedule);
+
+let legendHtml = `<div class="calendar-legend">
+            ${categoryLegend}
+            ${currentRole === "admin" ? `<span><i class="calendar-dot" style="background:#fff;border:2px solid #d32f2f;"></i> Conflict</span>` : ""}
+            <span>Click a block to view course details${editable && currentRole === "admin" ? ' or edit' : ''}</span>
+        </div>`;
         let html = `<div class="calendar-shell ${currentRole === 'student' ? 'student-calendar' : 'admin-calendar'}">
             <div class="calendar-toolbar">
                 <div class="calendar-title">Weekly Calendar View</div>
@@ -1112,32 +1160,29 @@ function getEventColor(course, index) {
         initCalendarStickyHeader();
     }
 
-    function sortSchedule(schedule, field, ascending) {
-        let sorted = [...schedule];
-        sorted.sort((a,b) => {
-            let valA, valB;
-            switch(field) {
-                case 'section': valA = a.section || ''; valB = b.section || ''; break;
-                case 'courseno': valA = a.courseNo || ''; valB = b.courseNo || ''; break;
-                case 'coursename': valA = a.courseName || ''; valB = b.courseName || ''; break;
-                case 'dept': valA = a.dept || ''; valB = b.dept || ''; break;
-                case 'cred': valA = a.credits || 0; valB = b.credits || 0; break;
-                case 'days': valA = a.days || ''; valB = b.days || ''; break;
-                case 'time': valA = a.start || ''; valB = b.start || ''; break;
-                case 'building': valA = a.building || ''; valB = b.building || ''; break;
-                case 'room': valA = a.room || ''; valB = b.room || ''; break;
-                case 'instructor': valA = a.instructor || ''; valB = b.instructor || ''; break;
-                case 'ta': valA = a.ta || ''; valB = b.ta || ''; break;
-                default: valA = a.courseName || ''; valB = b.courseName || '';
-            }
-            if(typeof valA === 'number') return ascending ? valA - valB : valB - valA;
-            valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
-            if(valA < valB) return ascending ? -1 : 1;
-            if(valA > valB) return ascending ? 1 : -1;
-            return 0;
-        });
-        return sorted;
-    }
+    function sortSchedule(schedule, field, ascending = true) {
+    return [...schedule].sort((a, b) => {
+        let valA = a[field] || "";
+        let valB = b[field] || "";
+
+        if(field === "credits" || field === "courseNo" || field === "building" || field === "room") {
+            valA = Number(valA) || 0;
+            valB = Number(valB) || 0;
+        }
+
+        if(field === "start" || field === "end") {
+            valA = toMinutes(valA);
+            valB = toMinutes(valB);
+        }
+
+        if(typeof valA === "string") valA = valA.toLowerCase();
+        if(typeof valB === "string") valB = valB.toLowerCase();
+
+        if(valA < valB) return ascending ? -1 : 1;
+        if(valA > valB) return ascending ? 1 : -1;
+        return 0;
+    });
+}
 
     function renderTable(schedule, editable) {
         if(!schedule || !schedule.length) { 
@@ -1156,16 +1201,31 @@ function getEventColor(course, index) {
         const { instructorMap, taMap } = computePersonHours(sortedSchedule);
         
         let html = `<table><thead>`;
-        const headers = ["Section", "Course No", "Course Name", "Dept", "Cred", "Days", "Time", "Building", "Room", "Instructor", "TA", "Actions"];
-        html += `<tr>`;
+        const headers = [
+    { label: "Section", field: null },
+    { label: "Course No", field: "courseNo" },
+    { label: "Course Name", field: "courseName" },
+    { label: "Dept", field: null },
+    { label: "Cred", field: "credits" },
+    { label: "Days", field: null },
+    { label: "Start", field: "start" },
+    { label: "End", field: "end" },
+    { label: "Building", field: "building" },
+    { label: "Room", field: "room" },
+    { label: "Instructor", field: null },
+    { label: "TA", field: null },
+    { label: "Actions", field: null }
+];
+
+html += `<tr>`;
 headers.forEach(header => {
-    let sortField = header.toLowerCase().replace(/ /g, '');
-    let sortIcon = currentSort.field === sortField ? (currentSort.ascending ? ' ↑' : ' ↓') : ' ↕';
+    let sortField = header.field;
+    let sortIcon = sortField && currentSort.field === sortField ? (currentSort.ascending ? ' ↑' : ' ↓') : ' ↕';
     html += `<th style="min-width:80px;">
                 <div class="header-cell">
-                    <span>${header}</span>
-                    <span class="sort-icon" onclick="window.sortByColumn('${sortField}')">${sortIcon}</span>
-                </div>
+    <span>${header.label}</span>
+    ${sortField ? `<span class="sort-icon" onclick="window.sortByColumn('${sortField}')">${sortIcon}</span>` : ""}
+</div>
              </th>`;
 });
 html += `</tr>`;
@@ -1180,6 +1240,7 @@ html += `<td><select id="filterDept" class="filter-select"><option value="all">A
 html += `<td></td>`;
 html += `<td><select id="filterDays" class="filter-select"><option value="all">All Days</option>${uniqueDays.map(d => `<option value="${d}" ${filters.days === d ? 'selected' : ''}>${decodeDays(d)}</option>`).join('')}</select></td>`;
 html += `<td><input type="text" id="filterTime" class="filter-input" placeholder="Filter time..." value="${filters.time}"></td>`;
+html += `<td></td>`;
 html += `<td><input type="text" id="filterBuilding" class="filter-input" placeholder="Filter building..." value="${filters.building}"></td>`;
 html += `<td><input type="text" id="filterRoom" class="filter-input" placeholder="Filter room..." value="${filters.room}"></td>`;
 html += `<td><input type="text" id="filterInstructor" class="filter-input" placeholder="Filter instructor..." value="${filters.instructor}"></td>`;
@@ -1198,14 +1259,15 @@ html += `<tbody id="scheduleTableBody">`;
             let instructorDisplay = getPersonDisplay(c.instructor, 'instructor', instructorMap, sortedSchedule);
             let taDisplay = getPersonDisplay(c.ta, 'ta', taMap, sortedSchedule);
             
-            html += `<tr class="${rowClass}" data-section="${(c.section || '').toLowerCase()}" data-courseno="${(c.courseNo || '').toLowerCase()}" data-coursename="${(c.courseName || '').toLowerCase()}" data-dept="${(c.dept || '').toLowerCase()}" data-building="${(c.building || '').toLowerCase()}" data-room="${(c.room || '').toLowerCase()}" data-instructor="${(c.instructor || '').toLowerCase()}" data-ta="${(c.ta || '').toLowerCase()}" data-days="${c.days}" data-time="${c.start}">`;
+            html += `<tr class="${rowClass}" data-section="${(c.section || '').toLowerCase()}" data-courseno="${(c.courseNo || '').toLowerCase()}" data-coursename="${(c.courseName || '').toLowerCase()}" data-dept="${(c.dept || '').toLowerCase()}" data-building="${(c.building || '').toLowerCase()}" data-room="${(c.room || '').toLowerCase()}" data-instructor="${(c.instructor || '').toLowerCase()}" data-ta="${(c.ta || '').toLowerCase()}" data-days="${c.days}" data-time="${c.start} ${c.end}">`;
             html += `<td>${c.section || '-'}</td>`;
             html += `<td>${c.courseNo || '-'}</td>`;
             html += `<td><strong>${c.courseName}</strong> ${categoryBadge}</td>`;
             html += `<td>${c.dept}${catalogInfo ? `<br><span style="font-size:0.6rem;">${catalogInfo.category}</span>` : ''}</td>`;
             html += `<td>${c.credits}</td>`;
             html += `<td>${decodeDays(c.days)}</td>`;
-            html += `<td>${c.start}-${c.end}</td>`;
+            html += `<td>${c.start}</td>`;
+            html += `<td>${c.end}</td>`;
             html += `<td>${c.building || '-'}</td>`;
             html += `<td>${c.room || '-'}</td>`;
             html += `<td>${instructorDisplay.html}</td>`;
@@ -1253,7 +1315,7 @@ let newCourse = {
   courseName: cat.title,
   dept: cat.category || "",
   credits: cat.credits || 0,
-        days:document.getElementById("newDays").value, start:document.getElementById("newStart").value, end:document.getElementById("newEnd").value, building:document.getElementById("newBuilding").value.trim()||"TBD", room:document.getElementById("newRoom").value.trim()||"TBD", instructor:document.getElementById("newInstructor").value.trim()||"TBD", ta:document.getElementById("newTA").value.trim()||"" }; if(!newCourse.courseName){ alert("Course name required"); return; } if(newCourse.start>=newCourse.end){ alert("End time after start"); return; } let conflicts=checkConflictsForEditedCourse(newCourse,currentSchedule,null); if(conflicts.length){ alert("Cannot add due to conflicts:\n"+conflicts.map(c=>c.message).join("\n")); return; } let tempSchedule=[...currentSchedule, newCourse]; let coreqCheck=checkCorequisitesOnly(newCourse,tempSchedule); if(!coreqCheck.passed && !ignoreCoreqWarnings){ alert("Co-requisite violation: "+coreqCheck.violations.join(", ")); return; } currentSchedule.push(newCourse); rerenderAdminSchedule(); showToast(`Added ${newCourse.courseName}`); document.querySelectorAll("#newCourseNo,#newSection,#newBuilding,#newRoom,#newInstructor,#newTA").forEach(inp=>inp.value=""); document.getElementById("newStart").value=""; document.getElementById("newEnd").value=""; document.getElementById("newCredits").value="3"; }
+        days:document.getElementById("newDays").value, start:document.getElementById("newStart").value, end:document.getElementById("newEnd").value, building:document.getElementById("newBuilding").value.trim()||"TBD", room:document.getElementById("newRoom").value.trim()||"TBD", instructor:document.getElementById("newInstructor").value.trim()||"TBD", ta:document.getElementById("newTA").value.trim()||"" }; if(!newCourse.courseName){ alert("Course name required"); return; } if(newCourse.start>=newCourse.end){ alert("End time after start"); return; } let conflicts=checkConflictsForEditedCourse(newCourse,currentSchedule,null); if(conflicts.length){ alert("Cannot add due to conflicts:\n"+conflicts.map(c=>c.message).join("\n")); return; } let tempSchedule=[...currentSchedule, newCourse]; let coreqCheck=checkCorequisitesOnly(newCourse,tempSchedule); if(!coreqCheck.passed && !ignoreCoreqWarnings){ alert("Co-requisite violation: "+coreqCheck.violations.join(", ")); return; } currentSchedule.push(newCourse); rerenderAdminSchedule(); showToast(`Added ${newCourse.courseName}`); document.querySelectorAll("#newCourseNo,#newSection,#newBuilding,#newRoom,#newInstructor,#newTA").forEach(inp=>inp.value=""); document.getElementById("newStart").value=""; document.getElementById("newEnd").value=""; }
 function loadCatalogFromCSV(file){ 
     const reader=new FileReader(); 
     reader.onload=e=>{ 
@@ -1318,122 +1380,10 @@ function loadCatalogFromCSV(file){
     function deletePublishedSchedule(){ let sel=document.getElementById("historicalSelect").value; if(!sel || !publishedSemesters[sel]){ alert("Select a published semester"); return; } if(confirm(`Delete ${sel}?`)){ delete publishedSemesters[sel]; localStorage.setItem("publishedSemesters",JSON.stringify(publishedSemesters)); if(currentView===sel){ currentSchedule=[]; renderTable([],false); } updateDropdown(); showToast(`Deleted ${sel}`); } }
     function updateDropdown(){ let select=document.getElementById("historicalSelect"); let opts='<option value="">-- Load Semester --</option>'; for(let [year] of Object.entries(publishedSemesters)) opts+=`<option value="${year}">${year} (Published)</option>`; select.innerHTML=opts; if(currentView && publishedSemesters[currentView]) select.value=currentView; else select.value=""; }
     function downloadScheduleAsCSV() { if (!currentSchedule.length) { alert("No schedule to download."); return; } let headers = ["courseNo","section","courseName","dept","credits","days","start","end","building","room","instructor","ta"]; let csvRows = [headers.join(",")]; for (let c of currentSchedule) { let row = headers.map(h => { let val = c[h] !== undefined && c[h] !== null ? c[h] : ""; val = String(val); if (val.includes(",") || val.includes("\"")) val = `"${val.replace(/"/g, '""')}"`; return val; }); csvRows.push(row.join(",")); } let blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" }); let a = document.createElement("a"); let url = URL.createObjectURL(blob); a.href = url; a.download = "schedule_export.csv"; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast("Schedule exported as CSV"); }
-
-
-    function csvEscape(value) {
-        let val = value === undefined || value === null ? "" : String(value);
-        if (val.includes(",") || val.includes("\"") || val.includes("\n")) {
-            val = `"${val.replace(/"/g, '""')}"`;
-        }
-        return val;
-    }
-
-    function downloadCSVReport(filename, headers, rows) {
-        if (!currentSchedule.length) {
-            alert("No schedule loaded.");
-            return;
-        }
-        let csvRows = [headers.join(",")];
-        rows.forEach(row => {
-            csvRows.push(headers.map(h => csvEscape(row[h])).join(","));
-        });
-        let blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-        let a = document.createElement("a");
-        let url = URL.createObjectURL(blob);
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast(`${filename} downloaded`);
-    }
-
-    function getAssignedCourseLabel(course) {
-        return `${course.courseNo || ""}-${course.section || ""}`.replace(/-$/, "");
-    }
-
-    function downloadFacultyLoadsCSV() {
-        const loads = new Map();
-        currentSchedule.forEach(course => {
-            const name = (course.instructor || "").trim();
-            if (!name || name === "TBD") return;
-
-            const info = getCatalogInfo(course.courseNo);
-            const theo = info ? (parseFloat(info.theoretical_hours) || 0) : 0;
-            const prac = 0;
-
-            if (!loads.has(name)) {
-                loads.set(name, { "Name": name, "Theoretical Hours": 0, "Practical Hours": 0, "Total Hours": 0, "Assigned Courses": [] });
-            }
-            const item = loads.get(name);
-            item["Theoretical Hours"] += theo;
-            item["Practical Hours"] += prac;
-            item["Total Hours"] = item["Theoretical Hours"] + item["Practical Hours"];
-            item["Assigned Courses"].push(getAssignedCourseLabel(course));
-        });
-
-        const headers = ["Name", "Theoretical Hours", "Practical Hours", "Total Hours", "Assigned Courses"];
-        const rows = Array.from(loads.values())
-            .sort((a, b) => a["Name"].localeCompare(b["Name"]))
-            .map(row => ({ ...row, "Assigned Courses": row["Assigned Courses"].join("; ") }));
-
-        downloadCSVReport("loads_faculty.csv", headers, rows);
-    }
-
-    function downloadTALoadsCSV() {
-        const loads = new Map();
-        currentSchedule.forEach(course => {
-            const name = (course.ta || "").trim();
-            if (!name) return;
-
-            const info = getCatalogInfo(course.courseNo);
-            const theo = info ? (parseFloat(info.theoretical_hours) || 0) : 0;
-            const prac = info ? (parseFloat(info.practical_hours) || 0) : 0;
-            const hasInstructor = course.instructor && course.instructor !== "TBD";
-
-            if (!loads.has(name)) {
-                loads.set(name, { "Name": name, "Theoretical Hours": 0, "Practical Hours": 0, "Total Hours": 0, "Assigned Courses": [] });
-            }
-            const item = loads.get(name);
-            item["Theoretical Hours"] += hasInstructor ? 0 : theo;
-            item["Practical Hours"] += prac;
-            item["Total Hours"] = item["Theoretical Hours"] + item["Practical Hours"];
-            item["Assigned Courses"].push(getAssignedCourseLabel(course));
-        });
-
-        const headers = ["Name", "Theoretical Hours", "Practical Hours", "Total Hours", "Assigned Courses"];
-        const rows = Array.from(loads.values())
-            .sort((a, b) => a["Name"].localeCompare(b["Name"]))
-            .map(row => ({ ...row, "Assigned Courses": row["Assigned Courses"].join("; ") }));
-
-        downloadCSVReport("loads_ta.csv", headers, rows);
-    }
-
-    function downloadRoomsCSV() {
-        const headers = ["Building", "Room", "Days", "Start", "End", "Course No", "Section", "Course Name", "Instructor", "TA"];
-        const rows = [...currentSchedule]
-            .sort((a, b) =>
-                String(a.building || "").localeCompare(String(b.building || ""), undefined, { numeric: true }) ||
-                String(a.room || "").localeCompare(String(b.room || ""), undefined, { numeric: true }) ||
-                String(a.days || "").localeCompare(String(b.days || ""), undefined, { numeric: true }) ||
-                (toMinutes(a.start || "00:00") - toMinutes(b.start || "00:00"))
-            )
-            .map(course => ({
-                "Building": course.building || "",
-                "Room": course.room || "",
-                "Days": course.days || "",
-                "Start": course.start || "",
-                "End": course.end || "",
-                "Course No": course.courseNo || "",
-                "Section": course.section || "",
-                "Course Name": course.courseName || "",
-                "Instructor": course.instructor || "",
-                "TA": course.ta || ""
-            }));
-
-        downloadCSVReport("rooms.csv", headers, rows);
-    }
+    function loadDefaultSampleSchedule(){ let sample=[ ["1600100","01A","INTRODUCTION TO DESIGN STUDIO","VCD",4,"135","14:00","16:50","AD","C3","SARAH ALFALAH",""], ["1600101","02A","INTRO TO DESIGN THEORY","VCD",3,"135","10:00","10:50","AD","G12E","LAMIS BEHBEHANI","ZAINA"], ["1630240","01A","STUDIO INTERIOR ARCHITECTURE I","IA",5,"135","14:00","16:50","AD","D4","LAMIS BEHBEHANI",""], ["1620240","01A","DESIGN STUDIO I","VCD",4,"135","09:00","11:50","AD","C4","AHMAD ALOUMI",""], ["1600102","01A","REPRESENTATION STUDIO I","VCD",3,"135","14:00","16:50","AD","C3","SARAH ALFALAH",""] ]; currentSchedule=sample.map(row=>({ id:generateId(), courseNo:row[0], section:row[1], courseName:row[2], dept:row[3], credits:parseInt(row[4]), days:row[5], start:row[6], end:row[7], building:row[8], room:row[9], instructor:row[10], ta:row[11] })); updateDepartmentDropdowns(); updateInstructorDropdown(); rerenderAdminSchedule(); showToast("Loaded sample schedule"); }
+    function downloadSampleCSV(){ let headers="courseNo,section,courseName,dept,credits,days,start,end,building,room,instructor,ta\n"; let sample="1600100,01A,INTRODUCTION TO DESIGN STUDIO,VCD,4,135,14:00,16:50,AD,C3,SARAH ALFALAH,\n1630240,01A,STUDIO INTERIOR ARCHITECTURE I,IA,5,135,14:00,16:50,AD,D4,LAMIS BEHBEHANI,"; let blob=new Blob([headers+sample],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="schedule_template.csv"; a.click(); }
+    function downloadSampleCatalog(){ let headers="course_code,course_title,theoretical_hours,practical_hours,credits,category,sub_category\n"; let sample="1600100,Introduction to Design Studio,2,4,4,Major,Core\n1600101,Introduction to Design Theory & Criticism,3,0,3,Major,History & Theory"; let blob=new Blob([headers+sample],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="course_catalog_template.csv"; a.click(); }
+    function downloadSampleRulesCSV(){ let headers="rule_id,course_code,course_title,requirement_type,required_code,required_title,minimum_credits,notes\n"; let sample="R001,1600100,Introduction to Design Studio,prerequisite,9988090,English I,,"; let blob=new Blob([headers+sample],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="prerequisites_template.csv"; a.click(); }
     function initThresholdToggle() {
     const toggle = document.getElementById("thresholdModeToggle");
     if(toggle) {
@@ -1510,10 +1460,23 @@ function loadCatalogFromCSV(file){
     document.getElementById("uploadCatalogBtn")?.addEventListener("click",()=>{ let f=document.getElementById("catalogFileInput").files[0]; if(f) loadCatalogFromCSV(f); else alert("Select catalog CSV"); });
     document.getElementById("uploadCsvBtn")?.addEventListener("click",()=>{ let f=document.getElementById("csvFileInput").files[0]; if(f) loadScheduleFromCSV(f); else alert("Select schedule CSV"); });
     document.getElementById("uploadRulesBtn")?.addEventListener("click",()=>{ let f=document.getElementById("rulesFileInput").files[0]; if(f) loadRulesFromCSV(f); else alert("Select rules CSV"); });
-    document.getElementById("loadDefaultBtn")?.addEventListener("click",loadDefaultSampleSchedule);
-    document.getElementById("downloadSampleCsv")?.addEventListener("click",downloadSampleCSV);
-    document.getElementById("downloadSampleCatalog")?.addEventListener("click",downloadSampleCatalog);
-    document.getElementById("downloadSampleRules")?.addEventListener("click",downloadSampleRulesCSV);
+    const sampleLinks = {
+    catalog: "https://www.dropbox.com/scl/fi/zt9wvsfqxni939x8ncnco/DOA_courses_credits-SM.csv?rlkey=bahaffq1a75eodfch9duz8cnf&dl=1",
+    schedule: "https://www.dropbox.com/scl/fi/rrxugv6k75kj7i55zu9mk/DOA_spring_schedule-SM.csv?rlkey=g2bsre6uliazqngu8jxgez4yx&dl=1",
+    rules: "https://www.dropbox.com/scl/fi/g7htui748nj6weoryywgy/DOA_pre_co_requisites-SM.csv?rlkey=arxn4o065a2geidx35v9n5qxf&dl=1"
+};
+
+document.getElementById("downloadSampleCatalog")?.addEventListener("click", () => {
+    window.open(sampleLinks.catalog, "_blank");
+});
+
+document.getElementById("downloadSampleCsv")?.addEventListener("click", () => {
+    window.open(sampleLinks.schedule, "_blank");
+});
+
+document.getElementById("downloadSampleRules")?.addEventListener("click", () => {
+    window.open(sampleLinks.rules, "_blank");
+});
     document.getElementById("addCourseBtn")?.addEventListener("click",addNewCourse);
     document.getElementById("publishBtn")?.addEventListener("click",publishNewSemester);
     document.getElementById("deletePublishedBtn")?.addEventListener("click",deletePublishedSchedule);
@@ -1569,6 +1532,115 @@ function loadCatalogFromCSV(file){
         else if(currentRole === "student") renderStudentView();
     }));
     generateYearSelector(); updateDepartmentDropdowns(); updateDropdown(); initThresholdToggle();
+    function downloadFacultyLoadsCSV() {
+    const { instructorMap } = computePersonHours(currentSchedule);
+
+    let rows = [["Name","Theoretical Hours","Practical Hours","Total Hours","Assigned Courses"]];
+
+    instructorMap.forEach((data, name) => {
+        let assigned = currentSchedule
+            .filter(c => c.instructor === name)
+            .map(c => `${c.courseNo}-${c.section}`)
+            .join("; ");
+
+        rows.push([
+            name,
+            data.theo,
+            data.prac,
+            data.theo + data.prac,
+            assigned
+        ]);
+    });
+
+    downloadCSV(rows, "faculty_loads.csv");
+}
+
+function downloadTALoadsCSV() {
+    const { taMap } = computePersonHours(currentSchedule);
+
+    let rows = [["Name","Theoretical Hours","Practical Hours","Total Hours","Assigned Courses"]];
+
+    taMap.forEach((data, name) => {
+        let assigned = currentSchedule
+            .filter(c => c.ta === name)
+            .map(c => `${c.courseNo}-${c.section}`)
+            .join("; ");
+
+        rows.push([
+            name,
+            data.theo,
+            data.prac,
+            data.theo + data.prac,
+            assigned
+        ]);
+    });
+
+    downloadCSV(rows, "ta_loads.csv");
+}
+
+function downloadRoomsCSV() {
+    let rows = [[
+        "Building",
+        "Room",
+        "Days",
+        "Start",
+        "End",
+        "Course No",
+        "Section",
+        "Course Name",
+        "Instructor",
+        "TA"
+    ]];
+
+    [...currentSchedule]
+        .sort((a,b) =>
+            (a.building || "").localeCompare(b.building || "") ||
+            (a.room || "").localeCompare(b.room || "") ||
+            toMinutes(a.start) - toMinutes(b.start)
+        )
+        .forEach(c => {
+            rows.push([
+                c.building,
+                c.room,
+                decodeDays(c.days),
+                c.start,
+                c.end,
+                c.courseNo,
+                c.section,
+                c.courseName,
+                c.instructor,
+                c.ta
+            ]);
+        });
+
+    downloadCSV(rows, "rooms.csv");
+}
+
+function downloadCSV(rows, filename) {
+    const csv = rows.map(r =>
+        r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",")
+    ).join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+
+    URL.revokeObjectURL(a.href);
+}
+    document.querySelectorAll(".report-option").forEach(btn => {
+    btn.addEventListener("click", () => {
+        const type = btn.dataset.report;
+
+        if(type === "faculty") downloadFacultyLoadsCSV();
+        if(type === "ta") downloadTALoadsCSV();
+        if(type === "rooms") downloadRoomsCSV();
+
+        document.getElementById("reportsMenu").style.display = "none";
+    });
+});
 </script>
 </body>
 </html>
