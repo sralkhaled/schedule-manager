@@ -345,22 +345,23 @@ input:checked + .toggle-slider:before {
     <button id="reportsBtn" class="sample-btn">Reports ▼</button>
 
     <div id="reportsMenu" style="
-        display:none;
-        position:absolute;
-        top:38px;
-        right:0;
-        background:white;
-        border:1px solid #ddd;
-        border-radius:12px;
-        box-shadow:0 4px 12px rgba(0,0,0,0.12);
-        min-width:180px;
-        z-index:500;
-        overflow:hidden;
-    ">
-        <button class="report-option" data-report="faculty">Loads - Faculty</button>
-        <button class="report-option" data-report="ta">Loads - TA</button>
-        <button class="report-option" data-report="rooms">Rooms</button>
-    </div>
+    display:none;
+    position:absolute;
+    top:38px;
+    right:0;
+    background:white;
+    border:1px solid #ddd;
+    border-radius:12px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.12);
+    min-width:180px;
+    z-index:500;
+    overflow:hidden;
+">
+    <button class="report-option" data-report="faculty">Loads - Faculty</button>
+    <button class="report-option" data-report="ta">Loads - TA</button>
+    <button class="report-option" data-report="rooms">Rooms</button>
+    <button class="report-option" data-report="calendar">Calendar</button>
+</div>
 </div>
             <button onclick="hardReset()" style="background: #dc3545; padding: 6px 18px; border-radius: 30px;">Hard Reset Everything</button>
         </div>
@@ -713,22 +714,65 @@ function goBack() {
     }
 
     function getCourseYearLevel(courseCode) {
-        let nominalLevel = getNominalCourseLevel(courseCode);
-        let prereqDepth = getPrerequisiteDepth(courseCode);
-        let prereqLevel = prereqDepth === 0 ? "freshman" : (prereqDepth === 1 ? "sophomore" : (prereqDepth === 2 ? "junior" : "senior"));
-        let minCredits = getMinimumCreditsForCourse(courseCode);
-        let creditLevel = getCreditBasedLevel(minCredits);
-        let info = getCatalogInfo(courseCode);
-        let categoryText = info ? `${info.category || ""} ${info.sub_category || ""}`.toLowerCase() : "";
-        let isFlexibleElective = categoryText.includes("elective");
+    let nominalLevel = getNominalCourseLevel(courseCode);
+    let minCredits = getMinimumCreditsForCourse(courseCode);
+    let creditLevel = getCreditBasedLevel(minCredits);
+    let info = getCatalogInfo(courseCode);
+    let categoryText = info ? `${info.category || ""} ${info.sub_category || ""}`.toLowerCase() : "";
+    let isFlexibleElective = categoryText.includes("elective");
 
-        if(isFlexibleElective && nominalLevel) {
-            return getHighestStandingLevel([nominalLevel, creditLevel]);
-        }
-
-        return getHighestStandingLevel([nominalLevel, prereqLevel, creditLevel]);
+    // If it's an elective, use highest of nominal and credits
+    if(isFlexibleElective && nominalLevel) {
+        return getHighestStandingLevel([nominalLevel, creditLevel]);
     }
-    function getCoursesForYearLevel(yearLevel) { let available=[]; for(let [code,info] of courseCatalog) if(getCourseYearLevel(code)===yearLevel) available.push({ courseNo:code, courseName:info.title, credits:info.credits, category:info.category, sub_category:info.sub_category }); return available; }
+
+    // For core courses: Course number ALWAYS wins if it exists
+    if (nominalLevel) {
+        return nominalLevel;
+    }
+    
+    // Only use prerequisite depth for courses WITHOUT standard numbers
+    let prereqDepth = getPrerequisiteDepth(courseCode);
+    let prereqLevel = prereqDepth === 0 ? "freshman" : (prereqDepth === 1 ? "sophomore" : (prereqDepth === 2 ? "junior" : "senior"));
+    
+    return getHighestStandingLevel([prereqLevel, creditLevel]);
+}
+    function getCoursesForYearLevel(yearLevel) { 
+    let available = [];
+    let targetOrder = getStandingOrder(yearLevel);
+    
+    for(let [code, info] of courseCatalog) {
+        let courseLevel = getCourseYearLevel(code);
+        let courseOrder = getStandingOrder(courseLevel);
+        let categoryText = `${info.category || ""} ${info.sub_category || ""}`.toLowerCase();
+        let isElective = categoryText.includes("elective");
+        
+        if (isElective) {
+            // Electives: show for ALL students at or above the course's level
+            if (courseOrder <= targetOrder) {
+                available.push({ 
+                    courseNo: code, 
+                    courseName: info.title, 
+                    credits: info.credits, 
+                    category: info.category, 
+                    sub_category: info.sub_category 
+                });
+            }
+        } else {
+            // Core courses: ONLY show at exact matching level
+            if (courseLevel === yearLevel) {
+                available.push({ 
+                    courseNo: code, 
+                    courseName: info.title, 
+                    credits: info.credits, 
+                    category: info.category, 
+                    sub_category: info.sub_category 
+                });
+            }
+        }
+    }
+    return available;
+}
     function checkCorequisitesOnly(course, allCourses) { if(ignoreCoreqWarnings) return { passed:true, violations:[] }; let violations=[]; for(let rule of prerequisites) if((rule.course_code===course.courseNo || rule.course_title===course.courseName) && rule.requirement_type==='corequisite') { let hasCoreq=allCourses.some(c=>c.id!==course.id && (c.courseNo===rule.required_code || c.courseName===rule.required_title)); if(!hasCoreq) violations.push(`Missing co-requisite: ${rule.required_title || rule.required_code}`); } return { passed:violations.length===0, violations }; }
     function updateDepartmentDropdowns() { let depts=[...new Set(currentSchedule.map(c=>c.dept).filter(d=>d))]; if(depts.length===0 && courseCatalog.size>0) depts=[...new Set(Array.from(courseCatalog.values()).map(info=>info.category).filter(c=>c))]; let newDept=document.getElementById("newDept"); if(newDept) { let cv=newDept.value; newDept.innerHTML=''; if(depts.length===0) newDept.innerHTML='<option value="">Load schedule to see departments</option>'; else depts.forEach(d=>newDept.innerHTML+=`<option value="${d}">${d}</option>`); if(cv && depts.includes(cv)) newDept.value=cv; else if(depts.length>0) newDept.value=depts[0]; } }
     function updateInstructorDropdown() { let instructors=[...new Set(currentSchedule.map(c=>c.instructor).filter(i=>i && i!=="TBD"))]; if(instructors.length===0) instructors=["TBD"]; let select=document.getElementById("editInstructor"); if(select) { let cv=select.value; select.innerHTML=instructors.map(inst=>`<option value="${inst}" ${inst===cv?'selected':''}>${inst}</option>`).join(''); } }
@@ -1624,6 +1668,84 @@ function downloadRoomsCSV() {
     downloadCSV(rows, "rooms.csv");
 }
 
+function downloadCalendarAsCSV() {
+    if (!currentSchedule.length) {
+        showToast("No schedule to export", true);
+        return;
+    }
+    
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"];
+    
+    const timeSlots = new Map();
+    
+    currentSchedule.forEach(course => {
+        getDayNumbers(course.days).forEach(dayCode => {
+            const key = `${dayCode}|${course.start}|${course.end}`;
+            if (!timeSlots.has(key)) {
+                timeSlots.set(key, { 
+                    dayCode, 
+                    start: course.start, 
+                    end: course.end, 
+                    courses: [] 
+                });
+            }
+            timeSlots.get(key).courses.push(course);
+        });
+    });
+    
+    let rows = [["Day", "Start", "End", "Courses (simultaneous)", "Rooms", "Instructors", "Course Numbers"]];
+    
+    const sortedSlots = Array.from(timeSlots.values()).sort((a, b) => {
+        if (a.dayCode !== b.dayCode) return a.dayCode - b.dayCode;
+        return a.start.localeCompare(b.start);
+    });
+    
+    sortedSlots.forEach(slot => {
+        const courseDetails = slot.courses.map(c => `${c.courseName} (${c.courseNo}-${c.section})`).join(" / ");
+        const rooms = slot.courses.map(c => `${c.building} ${c.room}`).join(" / ");
+        const instructors = slot.courses.map(c => c.instructor || "TBD").join(" / ");
+        const courseNos = slot.courses.map(c => `${c.courseNo} (${c.section})`).join(" / ");
+        
+        rows.push([
+            days[slot.dayCode - 1],
+            slot.start,
+            slot.end,
+            courseDetails,
+            rooms,
+            instructors,
+            courseNos
+        ]);
+    });
+    
+    const conflicts = detectConflictsWithDetails(currentSchedule);
+    if (conflicts.length > 0) {
+        rows.push([], ["CONFLICTS DETECTED:", "", "", "", "", ""]);
+        conflicts.forEach(conflict => {
+            rows.push([
+                "",
+                "",
+                "",
+                `"${conflict.courseA.courseName}" conflicts with "${conflict.courseB.courseName}" (${conflict.type})`,
+                "",
+                "",
+                ""
+            ]);
+        });
+    }
+    
+    const csv = rows.map(row => 
+        row.map(cell => `"${String(cell || "").replace(/"/g, '""')}"`).join(",")
+    ).join("\n");
+    
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `calendar_export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    showToast(`Calendar exported - ${sortedSlots.length} time slots, ${conflicts.length} conflicts noted`);
+}
+
 function downloadCSV(rows, filename) {
     const csv = rows.map(r =>
         r.map(v => `"${String(v ?? "").replace(/"/g,'""')}"`).join(",")
@@ -1645,6 +1767,7 @@ function downloadCSV(rows, filename) {
         if(type === "faculty") downloadFacultyLoadsCSV();
         if(type === "ta") downloadTALoadsCSV();
         if(type === "rooms") downloadRoomsCSV();
+        if(type === "calendar") downloadCalendarAsCSV();
 
         document.getElementById("reportsMenu").style.display = "none";
     });
