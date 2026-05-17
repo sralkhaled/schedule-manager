@@ -25,7 +25,7 @@
         button.secondary { background: #6c757d; }
         .publish-btn { background: #2e7d32; }
         .delete-published-btn { background-color: #dc3545; }
-        .sample-btn { background: #1e466e; color: white; text-decoration: none; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; display: inline-block; cursor: pointer; border: none; }
+        .sample-btn { background: #EEEEEE; color: #333; text-decoration: none; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; display: inline-block; cursor: pointer; border: none; }
         .report-option{
     display:block;
     width:100%;
@@ -431,6 +431,14 @@ input:checked + .toggle-slider:before {
         <span id="catalogStatus" class="catalog-status"></span>
     </div>
 
+    <div class="rules-upload-area">
+        <label>Prerequisites/Co-requisites:</label>
+        <input type="file" id="rulesFileInput" accept=".csv">
+        <button id="uploadRulesBtn">Load Rules</button>
+        <button id="downloadSampleRules" class="sample-btn">Download Sample Rules</button>
+        <span id="rulesStatus"></span>
+    </div>
+
         <div class="csv-upload-area">
         <label>Schedule:</label>
         <input type="file" id="csvFileInput" accept=".csv">
@@ -445,14 +453,6 @@ input:checked + .toggle-slider:before {
             </label>
             <span>Humanities</span>
         </div>
-    </div>
-
-    <div class="rules-upload-area">
-        <label>Prerequisites/Co-requisites:</label>
-        <input type="file" id="rulesFileInput" accept=".csv">
-        <button id="uploadRulesBtn">Load Rules</button>
-        <button id="downloadSampleRules" class="sample-btn">Download Sample Rules</button>
-        <span id="rulesStatus"></span>
     </div>
 
     <div id="publishBar" class="publish-bar">
