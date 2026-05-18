@@ -1350,7 +1350,84 @@ html += `<tbody id="scheduleTableBody">`;
     };
     function deleteCourseById(id,name){ if(confirm(`Delete ${name}?`)){ currentSchedule=currentSchedule.filter(c=>c.id!==id); rerenderAdminSchedule(); showToast(`Deleted ${name}`); } }
     function showToast(msg, isError=false){ let d=document.createElement("div"); d.className=isError?"warning-message success-message": "success-message"; d.innerText=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),2500); }
-    function openEditorById(id){ let c=currentSchedule.find(c=>c.id===id); if(!c) return; currentEditId=id; document.getElementById("editCourseName").innerText=c.courseName; document.getElementById("editCourseNo").value=c.courseNo||""; document.getElementById("editSection").value=c.section; document.getElementById("editDays").value=c.days; document.getElementById("editStart").value=c.start; document.getElementById("editEnd").value=c.end; document.getElementById("editBuilding").value=c.building||""; document.getElementById("editRoom").value=c.room||""; document.getElementById("editTA").value=c.ta||""; updateInstructorDropdown(); let instructorSelect=document.getElementById("editInstructor"); if(instructorSelect && c.instructor) instructorSelect.value=c.instructor; let tempCourse={...c}, conflicts=checkConflictsForEditedCourse(tempCourse,currentSchedule,id); let suggestionsHtml=conflicts.length? `<strong>Current Conflicts:</strong><br>${conflicts.map(conf=>`<div class="suggestion-item">${conf.message}</div>`).join('')}<div class="suggestion-item">Try different room/time</div>`:`<span style="color:green;"> No conflicts detected with current settings.</span>`; document.getElementById("conflictSuggestions").innerHTML=suggestionsHtml; document.getElementById("conflictSuggestions").style.display="block"; document.getElementById("editConflictWarning").innerHTML=""; document.getElementById("editCoreqWarning").innerHTML=""; document.getElementById("editorPanel").style.display="block"; document.getElementById("editorPanel").scrollIntoView({ behavior: "smooth", block: "start" }); }
+    function openEditorById(id){ 
+    let c=currentSchedule.find(c=>c.id===id); 
+    if(!c) return; 
+    currentEditId=id; 
+    document.getElementById("editCourseName").innerText=c.courseName; 
+    document.getElementById("editCourseNo").value=c.courseNo||""; 
+    document.getElementById("editSection").value=c.section; 
+    document.getElementById("editDays").value=c.days; 
+    
+    // FIX: Properly format time values so they don't get forgotten
+    function formatTimeForInput(timeStr) {
+        if (!timeStr) return "";
+        if (timeStr.includes(":")) {
+            let parts = timeStr.split(":");
+            let hour = parts[0].padStart(2, '0');
+            let minute = parts[1].substring(0, 2);
+            return `${hour}:${minute}`;
+        }
+        if (timeStr.length === 4 && !isNaN(timeStr)) {
+            return `${timeStr.substring(0,2)}:${timeStr.substring(2,4)}`;
+        }
+        return timeStr;
+    }
+    
+    document.getElementById("editStart").value = formatTimeForInput(c.start); 
+    document.getElementById("editEnd").value = formatTimeForInput(c.end); 
+    document.getElementById("editBuilding").value=c.building||""; 
+    document.getElementById("editRoom").value=c.room||""; 
+    document.getElementById("editTA").value=c.ta||""; 
+    updateInstructorDropdown(); 
+    let instructorSelect=document.getElementById("editInstructor"); 
+    if(instructorSelect && c.instructor) instructorSelect.value=c.instructor; 
+    let tempCourse={...c}, conflicts=checkConflictsForEditedCourse(tempCourse,currentSchedule,id); 
+    
+    // Find available rooms when there's a room conflict
+    let suggestionsHtml = '';
+    let roomConflict = conflicts.find(conf => conf.type === "room");
+    
+    if(roomConflict) {
+        let occupiedDuringSlot = new Set();
+        let allRooms = new Set();
+        
+        currentSchedule.forEach(course => {
+            if(course.id !== id && course.room && course.building) {
+                allRooms.add(`${course.building} ${course.room}`);
+            }
+        });
+        
+        currentSchedule.forEach(course => {
+            if(course.id !== id && 
+               getDayNumbers(course.days).some(d => getDayNumbers(c.days).includes(d)) &&
+               timesOverlap(c.start, c.end, course.start, course.end)) {
+                if(course.room && course.building) {
+                    occupiedDuringSlot.add(`${course.building} ${course.room}`);
+                }
+            }
+        });
+        
+        let availableRooms = Array.from(allRooms).filter(room => !occupiedDuringSlot.has(room));
+        
+        if(availableRooms.length > 0) {
+            suggestionsHtml = `<div class="suggestion-item" style="margin-top:8px;color:#0d47a1;"><strong>Suggested rooms:</strong> ${availableRooms.slice(0,5).join(', ')}</div>`;
+        } else if(allRooms.size > 0) {
+            suggestionsHtml = `<div class="suggestion-item" style="margin-top:8px;color:#b35f00;"><strong>Note:</strong> All rooms busy. Try different time.</div>`;
+        }
+    }
+    
+    let conflictMessagesHtml = conflicts.length ? 
+        `<strong>Current Conflicts:</strong><br>${conflicts.map(conf=>`<div class="suggestion-item">${conf.message}</div>`).join('')}${suggestionsHtml}` : 
+        `<span style="color:green;">✓ No conflicts detected with current settings.</span>`;
+    
+    document.getElementById("conflictSuggestions").innerHTML=conflictMessagesHtml; 
+    document.getElementById("conflictSuggestions").style.display="block"; 
+    document.getElementById("editConflictWarning").innerHTML=""; 
+    document.getElementById("editCoreqWarning").innerHTML=""; 
+    document.getElementById("editorPanel").style.display="block"; 
+    document.getElementById("editorPanel").scrollIntoView({ behavior: "smooth", block: "start" }); 
+}
     function applyEdit(){ if(!currentEditId) return; let idx=currentSchedule.findIndex(c=>c.id===currentEditId); if(idx===-1) return; let edited={...currentSchedule[idx], courseNo:document.getElementById("editCourseNo").value, section:document.getElementById("editSection").value, days:document.getElementById("editDays").value, start:document.getElementById("editStart").value, end:document.getElementById("editEnd").value, building:document.getElementById("editBuilding").value, room:document.getElementById("editRoom").value, instructor:document.getElementById("editInstructor").value, ta:document.getElementById("editTA").value}; if(edited.start>=edited.end){ document.getElementById("editConflictWarning").innerHTML="End time after start."; return; } let conflicts=checkConflictsForEditedCourse(edited,currentSchedule,currentEditId); if(conflicts.length){ document.getElementById("editConflictWarning").innerHTML=conflicts.map(c=>c.message).join("<br>"); return; } let tempSchedule=[...currentSchedule]; tempSchedule[idx]=edited; let coreqCheck=checkCorequisitesOnly(edited,tempSchedule); if(!coreqCheck.passed && !ignoreCoreqWarnings){ document.getElementById("editCoreqWarning").innerHTML="Co-requisite violation: "+coreqCheck.violations.join(", "); return; } currentSchedule[idx]=edited; document.getElementById("editorPanel").style.display="none"; currentEditId=null; rerenderAdminSchedule(); showToast("Changes saved successfully!"); }
     function addNewCourse(){ let courseNo=document.getElementById("newCourseNo").value.trim();
     let cat = getCatalogInfo(courseNo);
@@ -1695,10 +1772,17 @@ function downloadCalendarAsCSV() {
     
     let rows = [["Day", "Start", "End", "Courses (simultaneous)", "Rooms", "Instructors", "Course Numbers"]];
     
-    const sortedSlots = Array.from(timeSlots.values()).sort((a, b) => {
-        if (a.dayCode !== b.dayCode) return a.dayCode - b.dayCode;
-        return a.start.localeCompare(b.start);
-    });
+    // Helper function to convert time string to minutes for proper chronological sorting
+function timeToMinutes(timeStr) {
+    let parts = timeStr.split(':');
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
+const sortedSlots = Array.from(timeSlots.values()).sort((a, b) => {
+    if (a.dayCode !== b.dayCode) return a.dayCode - b.dayCode;
+    // Sort by start time numerically (8:00 = 480 mins, 12:00 = 720 mins)
+    return timeToMinutes(a.start) - timeToMinutes(b.start);
+});
     
     sortedSlots.forEach(slot => {
         const courseDetails = slot.courses.map(c => `${c.courseName} (${c.courseNo}-${c.section})`).join(" / ");
