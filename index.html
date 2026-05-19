@@ -372,7 +372,7 @@ input:checked + .toggle-slider:before {
     border:1px solid #ddd;
     border-radius:12px;
     box-shadow:0 4px 12px rgba(0,0,0,0.12);
-    min-width:180px;
+    min-width:250px;
     z-index:500;
     overflow:hidden;
 ">
@@ -380,6 +380,9 @@ input:checked + .toggle-slider:before {
     <button class="report-option" data-report="ta">Loads - TA</button>
     <button class="report-option" data-report="rooms">Rooms</button>
     <button class="report-option" data-report="calendar">Calendar</button>
+    <hr style="margin:4px 0; border-color:#eee;">
+    <button class="report-option" data-report="facultyForm">Faculty Load Signatory Form</button>
+    <button class="report-option" data-report="taForm">TA Load Signatory Form</button>
 </div>
 </div>
             <button onclick="hardReset()" style="background: #dc3545; padding: 6px 18px; border-radius: 30px;">Hard Reset Everything</button>
@@ -1863,6 +1866,560 @@ function downloadCSV(rows, filename) {
 
     URL.revokeObjectURL(a.href);
 }
+// ========== FACULTY TEACHING LOAD SIGNATORY FORM ==========
+function generateFacultySignatoryForm() {
+    if (!currentSchedule.length) {
+        showToast("No schedule data available. Please load a schedule first.", true);
+        return;
+    }
+
+    // Get unique instructors from schedule (exclude TBD/empty)
+    const instructors = [...new Set(currentSchedule
+        .filter(c => c.instructor && c.instructor.trim() !== "" && c.instructor !== "TBD")
+        .map(c => c.instructor))];
+
+    if (!instructors.length) {
+        showToast("No instructors found in the current schedule.", true);
+        return;
+    }
+
+    // Prompt user for College, Department, Semester
+    const college = prompt("Enter College Name (الكلية):", "كلية العمارة");
+    if (college === null) return;
+    const department = prompt("Enter Department Name (القسم العلمي):", "قسم العمارة ");
+    if (department === null) return;
+    const semester = prompt("Enter Semester (الفصل الدراسي):", "الفصل الأول 2026/2027");
+    if (semester === null) return;
+
+    // Build HTML for all instructors
+    let allPagesHtml = `
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>نموذج الهيئة الأكاديمية - تقرير شامل</title>
+        <style>
+            @page { 
+                size: A4 landscape; 
+                margin: 9mm;
+            }
+            * { box-sizing: border-box; }
+            body { 
+                margin: 0; 
+                background: #f3f3f3; 
+                font-family: "Times New Roman", "Arial", sans-serif; 
+                color: #000; 
+            }
+            .page { 
+                width: 297mm; 
+                min-height: 210mm; 
+                margin: 12px auto; 
+                background: #fff; 
+                padding: 10mm 13mm; 
+                border: 3px double #000; 
+                position: relative;
+                page-break-after: always;
+            }
+            .page:last-child {
+                page-break-after: auto;
+            }
+            .top { 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: flex-start; 
+                min-height: 34mm; 
+            }
+            .ku-head { 
+                display: flex; 
+                gap: 10px; 
+                align-items: center; 
+                text-align: center; 
+                font-weight: bold; 
+                font-size: 18px; 
+            }
+            .ku-head div { 
+                line-height: 1.2; 
+            }
+            .ku-head img { 
+                width: 32mm; 
+                height: auto; 
+            }
+            .left-fields { 
+                width: 85mm; 
+                margin-top: 2mm; 
+                font-weight: bold; 
+                font-size: 18px; 
+                line-height: 2.1; 
+            }
+            .field-line, .line, .sig-line { 
+                display: flex; 
+                align-items: baseline; 
+                white-space: nowrap; 
+            }
+            .dots { 
+                flex: 1; 
+                border-bottom: 2px dotted #000; 
+                height: 1.2em; 
+                margin: 0 8px; 
+            }
+            h1 { 
+                text-align: center; 
+                font-size: 24px; 
+                margin: 5mm 0 15mm; 
+                font-weight: bold; 
+            }
+            .identity { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr 1fr; 
+                gap: 22mm; 
+                align-items: center; 
+                font-size: 18px; 
+                font-weight: bold; 
+                margin-bottom: 15mm; 
+            }
+            table { 
+                border-collapse: collapse; 
+                width: 72%; 
+                margin: 0 auto 11mm; 
+                table-layout: fixed; 
+                direction: rtl; 
+            }
+            th, td { 
+                border: 1.5px solid #000; 
+                text-align: center; 
+                vertical-align: middle; 
+                padding: 5px; 
+                font-size: 18px; 
+            }
+            th { 
+                height: 13mm; 
+                font-weight: bold; 
+                line-height: 1.25; 
+            }
+            td { 
+                height: 12mm; 
+                font-size: 20px; 
+            }
+            .narrow { width: 8%; } 
+            .course { width: 31%; } 
+            .sec { width: 13%; } 
+            .days { width: 8%; } 
+            .time { width: 11%; } 
+            .hours { width: 15%; }
+            .splithead { padding: 0; }
+            .split-title { 
+                border-bottom: 1.5px solid #000; 
+                padding: 4px 2px; 
+            }
+            .split-labels { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; 
+            }
+            .split-labels span { 
+                padding: 3px 0; 
+            }
+            .split-labels span:first-child { 
+                border-left: 1.5px solid #000; 
+            }
+            .split { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; 
+                height: 100%; 
+                margin: -5px; 
+            }
+            .split > span { 
+                padding: 5px 0; 
+            }
+            .split > span:first-child { 
+                border-left: 1.5px solid #000; 
+            }
+            .signatures { 
+                display: grid; 
+                grid-template-columns: 1.2fr 1fr 1fr; 
+                gap: 8mm; 
+                font-size: 17px; 
+                font-weight: bold; 
+                margin: 1mm 16mm 9mm; 
+            }
+            .notes { 
+                font-size: 17px; 
+                font-weight: bold; 
+                line-height: 2.1; 
+                margin: 0 24mm; 
+                direction: rtl; 
+                text-align: right; 
+            }
+            .notes-title { 
+                font-weight: bold; 
+                margin-left: 7px; 
+            }
+            .print-btn { 
+                position: fixed; 
+                left: 18px; 
+                top: 18px; 
+                z-index: 2; 
+                padding: 8px 14px; 
+                border: 1px solid #333; 
+                background: #fff; 
+                cursor: pointer; 
+                border-radius: 6px; 
+                font-family: Arial, sans-serif; 
+            }
+            @media print { 
+                body { background: #fff; } 
+                .page { margin: 0; border: 3px double #000; page-break-after: always; } 
+                .print-btn { display: none; } 
+            }
+        </style>
+    </head>
+    <body>
+    <button class="print-btn" onclick="window.print()">طباعة / حفظ PDF</button>
+    `;
+
+    // Generate one page per instructor
+    instructors.forEach(instructor => {
+        // Get courses for this instructor
+        const instructorCourses = currentSchedule.filter(c => c.instructor === instructor);
+        
+        // Sort courses by courseNo or start time
+        const sortedCourses = [...instructorCourses].sort((a, b) => {
+            if (a.start && b.start) return toMinutes(a.start) - toMinutes(b.start);
+            return (a.courseNo || "").localeCompare(b.courseNo || "");
+        });
+
+        const totalCourses = sortedCourses.length;
+        const coursesPerPage = 5;
+        const totalPages = Math.ceil(totalCourses / coursesPerPage);
+
+        for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+            const startIdx = pageNum * coursesPerPage;
+            const endIdx = Math.min(startIdx + coursesPerPage, totalCourses);
+            const pageCourses = sortedCourses.slice(startIdx, endIdx);
+            
+            allPagesHtml += `
+            <section class="page">
+                <div class="top">
+                    <div class="ku-head">
+                        <img src="KU_Logo.png" alt="KU Logo" style="height: 90px; width: auto;" />
+                        <div>جامعة الكويت<br>عمادة القبول والتسجيل<br>إدارة التسجيل</div>
+                    </div>
+                    <div class="left-fields">
+                        <div class="field-line"><span>الكلية:</span><span class="dots"></span>${college}</div>
+                        <div class="field-line"><span>القسم العلمي:</span><span class="dots"></span>${department}</div>
+                        <div class="field-line"><span>الفصل الدراسي:</span><span class="dots"></span>${semester}</div>
+                    </div>
+                </div>
+
+                <h1>نموذج الهيئة الأكاديمية في الفصل الدراسي الإعتيادي الأول / الثاني</h1>
+
+                <div class="identity">
+                    <div class="line"><span>الاسم الثلاثي:</span><span class="dots"></span>${instructor}</div>
+                    <div class="line"><span>الرقم الوظيفي:</span><span class="dots"></span></div>
+                    <div class="line"><span>المسمى الوظيفي:</span><span class="dots"></span></div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="narrow">المسلسل</th>
+                            <th class="course">اسم المقرر</th>
+                            <th class="sec">رقم المقرر والشعبة</th>
+                            <th class="days">الأيام</th>
+                            <th class="time">الموعد</th>
+                            <th class="hours splithead">
+                                <div class="split-title">عدد الساعات الفعلية</div>
+                                <div class="split-labels"><span>ساعات</span><span>وحدات</span></div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            // Generate rows for this page
+            for (let i = 0; i < pageCourses.length; i++) {
+                const course = pageCourses[i];
+                const catalogInfo = getCatalogInfo(course.courseNo);
+                const seqNumber = startIdx + i + 1;
+                const hours = catalogInfo?.theoretical_hours || 0;
+                const units = course.credits || catalogInfo?.credits || 0;
+                
+                allPagesHtml += `
+                        <tr>
+                            <td>${seqNumber}</td>
+                            <td>${course.courseName || '-'}</td>
+                            <td>${course.courseNo || '-'} / ${course.section || '-'}</td>
+                            <td>${course.days || '-'}</td>
+                            <td>${course.start || ''}${course.start && course.end ? '-' : ''}${course.end || ''}</td>
+                            <td><div class="split"><span>${hours}</span><span>${units}</span></div></td>
+                        </tr>
+                `;
+            }
+
+            // Fill remaining rows if less than 5 on last page
+            if (pageNum === totalPages - 1 && pageCourses.length < coursesPerPage) {
+                const remainingRows = coursesPerPage - pageCourses.length;
+                for (let i = 0; i < remainingRows; i++) {
+                    allPagesHtml += `
+                        <tr>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td><div class="split"><span></span><span></span></div></td>
+                        </tr>
+                    `;
+                }
+            }
+
+            allPagesHtml += `
+                    </tbody>
+                </table>
+
+                <div class="signatures">
+                    <div class="sig-line"><span>توقيع و ختم عضو الهيئة الأكاديمية :</span><span class="dots"></span></div>
+                    <div class="sig-line"><span>توقيع وختم رئيس القسم :</span><span class="dots"></span></div>
+                    <div class="sig-line"><span>توقيع وختم عميد الكلية :</span><span class="dots"></span></div>
+                </div>
+
+                <div class="notes">
+                    <div>
+                        <div class="notes-title">الملاحظات:</div>
+                        1. تقع مسؤولية صحة البيانات المذكورة أعلاه على عضو الهيئة الأكاديمية و رئيس القسم العلمي .<br>
+                        2. تقع المسؤولية على القسم العلمي في التأكد من وصف المقرر المعتمد من الشؤون العلمية .<br>
+                        3. تزويد عمادة القبول و التسجيل بموافقة العمداء في حالة الانتداب الداخلي.<br>
+                        4. الالتزام بضوابط إعداد الجدول الدراسي طبقاً لقرار مجلس الجامعة المنعقد باجتماعه رقم (2025/6) بتاريخ 2025/12/24 .
+                    </div>
+                </div>
+            </section>
+            `;
+        }
+    });
+
+    allPagesHtml += `
+    </body>
+    </html>
+    `;
+
+    // Open in new tab
+    const newWindow = window.open();
+    newWindow.document.write(allPagesHtml);
+    newWindow.document.close();
+    showToast(`Generated form for ${instructors.length} instructor(s)`);
+}
+// ========== TA TEACHING LOAD SIGNATORY FORM ==========
+function generateTASignatoryForm() {
+    if (!currentSchedule.length) {
+        showToast("No schedule data available. Please load a schedule first.", true);
+        return;
+    }
+
+    // Get unique TAs from schedule (exclude empty)
+    const tas = [...new Set(currentSchedule
+        .filter(c => c.ta && c.ta.trim() !== "")
+        .map(c => c.ta))];
+
+    if (!tas.length) {
+        showToast("No TAs found in the current schedule.", true);
+        return;
+    }
+
+    // Prompt user for College, Department, Semester
+    const college = prompt("Enter College Name (الكلية):", "كلية الهندسة والبترول");
+    if (college === null) return;
+    const department = prompt("Enter Department Name (القسم العلمي):", "قسم الهندسة الكهربائية");
+    if (department === null) return;
+    const semester = prompt("Enter Semester (الفصل الدراسي):", "الفصل الأول 2025/2026");
+    if (semester === null) return;
+
+    // Build HTML for all TAs
+    let allPagesHtml = `
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>نموذج الهيئة الأكاديمية المساندة - تقرير شامل</title>
+        <style>
+            @page { size: A4 landscape; margin: 9mm; }
+            * { box-sizing: border-box; }
+            body { margin:0; background:#f3f3f3; font-family: "Times New Roman", "Arial", sans-serif; color:#000; }
+            .page { width: 297mm; min-height: 210mm; margin: 12px auto; background:#fff; padding: 10mm 13mm; border: 3px double #000; position: relative; page-break-after: always; }
+            .page:last-child { page-break-after: auto; }
+            .top { display:flex; justify-content:space-between; align-items:flex-start; min-height:35mm; }
+            .ku-head { display:flex; gap:10px; align-items:center; text-align:center; font-weight:bold; font-size:18px; }
+            .ku-head div { line-height: 1.2; }
+            .ku-head img { width:32mm; height:auto; }
+            .left-fields { width:85mm; margin-top:2mm; font-weight:bold; font-size:18px; line-height:2.1; }
+            .field-line { display:flex; align-items:baseline; white-space:nowrap; }
+            .dots { flex:1; border-bottom:2px dotted #000; height:1.2em; margin:0 8px; }
+            h1 { text-align:center; font-size:24px; margin: 5mm 0 9mm; font-weight:bold; }
+            .identity { display:grid; grid-template-columns: 1.8fr 1fr 1fr; gap:18mm; align-items:center; font-size:18px; font-weight:bold; margin-bottom:18mm; }
+            .identity .line { display:flex; align-items:baseline; }
+            table { border-collapse:collapse; width:84%; margin:0 auto 9mm; table-layout:fixed; direction:rtl; }
+            th, td { border:1.5px solid #000; text-align:center; vertical-align:top; padding:5px; font-size:18px; }
+            th { height:29mm; font-weight:bold; line-height:1.25; }
+            td { height:13mm; font-size:20px; vertical-align:middle; }
+            .narrow { width:8%; } .course { width:18%; } .sec { width:13%; } .days { width:8%; } .time { width:11%; } .teach { width:17%; } .lab { width:17%; }
+            .split { display:grid; grid-template-columns:1fr 1fr; height:100%; margin:-5px; }
+            .split > span { padding:5px 0; }
+            .split > span:first-child { border-left:1.5px solid #000; }
+            .signatures { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7mm; font-size:17px; font-weight:bold; margin: 1mm 16mm 8mm; }
+            .sig-line { display:flex; align-items:baseline; white-space:nowrap; }
+            .notes-title { font-weight:bold; margin-left:7px; }
+            .notes { display:grid; grid-template-columns:1fr 1fr; gap:14mm; font-size:17px; font-weight:bold; line-height:2.25; margin:0 12mm; direction:rtl; }
+            .notes div { text-align:right; }
+            .print-btn { position:fixed; left:18px; top:18px; z-index:2; padding:8px 14px; border:1px solid #333; background:#fff; cursor:pointer; border-radius:6px; font-family:Arial,sans-serif; }
+            @media print { body { background:#fff; } .page { margin:0; border:3px double #000; page-break-after: always; } .print-btn { display:none; } }
+        </style>
+    </head>
+    <body>
+    <button class="print-btn" onclick="window.print()">طباعة / حفظ PDF</button>
+    `;
+
+    // Generate one page per TA
+    tas.forEach(ta => {
+        // Get courses for this TA
+        const taCourses = currentSchedule.filter(c => c.ta === ta);
+        
+        // Sort courses by courseNo or start time
+        const sortedCourses = [...taCourses].sort((a, b) => {
+            if (a.start && b.start) return toMinutes(a.start) - toMinutes(b.start);
+            return (a.courseNo || "").localeCompare(b.courseNo || "");
+        });
+
+        const totalCourses = sortedCourses.length;
+        const coursesPerPage = 6;  // TA form has 6 rows per page
+        const totalPages = Math.ceil(totalCourses / coursesPerPage);
+
+        for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+            const startIdx = pageNum * coursesPerPage;
+            const endIdx = Math.min(startIdx + coursesPerPage, totalCourses);
+            const pageCourses = sortedCourses.slice(startIdx, endIdx);
+            
+            allPagesHtml += `
+            <section class="page">
+                <div class="top">
+                    <div class="ku-head">
+                        <img src="KU_Logo.png" alt="KU Logo" style="height: 90px; width: auto;" />
+                        <div>جامعة الكويت<br>عمادة القبول والتسجيل<br>إدارة التسجيل</div>
+                    </div>
+                    <div class="left-fields">
+                        <div class="field-line"><span>الكلية:</span><span class="dots"></span>${college}</div>
+                        <div class="field-line"><span>القسم العلمي:</span><span class="dots"></span>${department}</div>
+                        <div class="field-line"><span>الفصل الدراسي:</span><span class="dots"></span>${semester}</div>
+                    </div>
+                </div>
+
+                <h1>نموذج الهيئة الأكاديمية المساندة للكليات العملية في الفصل الأول/ الثاني للعام الجامعي</h1>
+
+                <div class="identity">
+                    <div class="line"><span>الاسم الثلاثي:</span><span class="dots"></span>${ta}</div>
+                    <div class="line"><span>الرقم الوظيفي:</span><span class="dots"></span></div>
+                    <div class="line"><span>المسمى الوظيفي : مدرس مساعد</span></div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="narrow">التسلسل</th>
+                            <th class="course">اسم المقرر</th>
+                            <th class="sec">رقم المقرر<br>والشعبة</th>
+                            <th class="days">الأيام</th>
+                            <th class="time">الموعد<br>من - إلى</th>
+                            <th class="teach">عدد الساعات الاتصال<br>الفعلي (تدريس)<br>ساعات&nbsp;&nbsp; وحدات</th>
+                            <th class="lab">عدد الساعات الاتصال<br>الفعلي (مختبرات/حل<br>مسائل)<br>ساعات&nbsp;&nbsp; وحدات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            // Generate rows for this page
+            for (let i = 0; i < pageCourses.length; i++) {
+                const course = pageCourses[i];
+                const catalogInfo = getCatalogInfo(course.courseNo);
+                const seqNumber = startIdx + i + 1;
+                
+                // Theoretical hours (تدريس)
+                const teachHours = catalogInfo?.theoretical_hours || 0;
+                const teachUnits = course.credits || catalogInfo?.credits || 0;
+                
+                // Practical hours (مختبرات/حل مسائل)
+                const labHours = catalogInfo?.practical_hours || 0;
+                const labUnits = course.credits || catalogInfo?.credits || 0;
+                
+                allPagesHtml += `
+                        <tr>
+                            <td>${seqNumber}</td>
+                            <td>${course.courseName || '-'}</td>
+                            <td>${course.courseNo || '-'} / ${course.section || '-'}</td>
+                            <td>${course.days || '-'}</td>
+                            <td>${course.start || ''}${course.start && course.end ? '-' : ''}${course.end || ''}</td>
+                            <td><div class="split"><span>${teachHours}</span><span>${teachUnits}</span></div></td>
+                            <td><div class="split"><span>${labHours}</span><span>${labUnits}</span></div></td>
+                        </tr>
+                `;
+            }
+
+            // Fill remaining rows if less than 6 on last page
+            if (pageNum === totalPages - 1 && pageCourses.length < coursesPerPage) {
+                const remainingRows = coursesPerPage - pageCourses.length;
+                for (let i = 0; i < remainingRows; i++) {
+                    allPagesHtml += `
+                        <tr>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td><div class="split"><span></span><span></span></div></td>
+                            <td><div class="split"><span></span><span></span></div></td>
+                        </tr>
+                    `;
+                }
+            }
+
+            allPagesHtml += `
+                    </tbody>
+                </table>
+
+                <div class="signatures">
+                    <div class="sig-line"><span>توقيع عضو الهيئة الأكاديمية المساندة :</span><span class="dots"></span></div>
+                    <div class="sig-line"><span>توقيع وختم رئيس القسم :</span><span class="dots"></span></div>
+                    <div class="sig-line"><span>توقيع وختم عميد الكلية:</span><span class="dots"></span></div>
+                </div>
+
+                <div class="notes">
+                    <div>
+                        <div class="notes-title">الملاحظات:</div>
+                        1. تقع مسؤولية صحة البيانات المذكورة أعلاه على المدرس المساعد و رئيس القسم العلمي<br>
+                        2. عدم إسناد الشعبة الواحدة لأكثر من مدرس مساعد.<br>
+                        3. تزويد عمادة القبول و التسجيل بموافقة العمداء في حالة الانتداب الداخلي.<br>
+                        4. تقع المسؤولية على القسم العلمي في التأكد من وصف المقرر المعتمد من الشؤون العلمية .
+                    </div>
+                    <div>
+                        5. لايجوز تعديل النموذج بعد الأسبوع الثاني من بدء الدراسة.<br>
+                        6. الالتزام بضوابط إعداد الجدول الدراسي طبقاً لقرار مجلس الجامعة<br>
+                        المنعقد باجتماعه رقم (2025/6) بتاريخ 2025/12/24
+                    </div>
+                </div>
+            </section>
+            `;
+        }
+    });
+
+    allPagesHtml += `
+    </body>
+    </html>
+    `;
+
+    // Open in new tab
+    const newWindow = window.open();
+    newWindow.document.write(allPagesHtml);
+    newWindow.document.close();
+    showToast(`Generated form for ${tas.length} TA(s)`);
+}
     document.querySelectorAll(".report-option").forEach(btn => {
     btn.addEventListener("click", () => {
         const type = btn.dataset.report;
@@ -1871,6 +2428,8 @@ function downloadCSV(rows, filename) {
         if(type === "ta") downloadTALoadsCSV();
         if(type === "rooms") downloadRoomsCSV();
         if(type === "calendar") downloadCalendarAsCSV();
+        if(type === "facultyForm") generateFacultySignatoryForm();
+        if(type === "taForm") generateTASignatoryForm();
 
         document.getElementById("reportsMenu").style.display = "none";
     });
