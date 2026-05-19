@@ -312,23 +312,30 @@ input:checked + .toggle-slider:before {
 </head>
 <body>
 <!-- Security Gate Section -->
-<div id="securityGate">
-    <h3>Access Required</h3>
-    <p>Please verify your credentials to continue</p>
-    
-    <div id="step1Div">
-        <label>KU ID</label>
-        <input type="text" id="kuIdInput" placeholder="e.g. 20XXX84" autocomplete="off">
-        <button onclick="verifyKUId()">Continue</button>
-        <p id="nameErrorMsg" class="error-msg"></p>
+<div id="securityGate" style="display: flex; align-items: center; gap: 30px; max-width: 850px;">
+    <div style="text-align: center; flex-shrink: 0; min-width: 200px;">
+        <img src="KU_Logo.png" alt="KU Logo" style="height: 130px; width: auto; display: block; margin: 0 auto 12px auto;">
+        <div style="font-size: 0.95rem; font-weight: 500; color: #333; letter-spacing: 0.5px;">Deanship of Admission & Registration</div>
     </div>
+    
+    <div style="width: 1px; height: 120px; background: #ddd; flex-shrink: 0;"></div>
+    
+    <div style="flex: 1;">
+         <h3 style="margin-top: 0;">Access Required</h3>
+    <p style="font-size: 0.75rem;">Please verify your credentials to proceed with Schedule Manager testing</p>
+        
+        <div id="step1Div">
+            <input type="text" id="kuIdInput" placeholder="KU ID (e.g. 20XXX84)" autocomplete="off">
+            <button onclick="verifyKUId()">Continue</button>
+            <p id="nameErrorMsg" class="error-msg"></p>
+        </div>
 
-    <div id="step2Div" style="display: none;">
-        <label>KU Email Address</label>
-        <input type="email" id="emailInput" placeholder="Your KU email">
-        <button onclick="verifyEmail()">Enter Site</button>
-        <p id="pwdErrorMsg" class="error-msg"></p>
-        <button onclick="goBack()" class="back-btn">← Back</button>
+        <div id="step2Div" style="display: none;">
+            <input type="email" id="emailInput" placeholder="Your KU email">
+            <button onclick="verifyEmail()">Enter Site</button>
+            <p id="pwdErrorMsg" class="error-msg"></p>
+            <button onclick="goBack()" class="back-btn">← Back</button>
+        </div>
     </div>
 </div>
 <div id="mainApp" class="main-app"><div class="container">
@@ -564,7 +571,7 @@ function verifyKUId() {
     errorSpan.innerText = "";
     document.getElementById("emailInput").value = "";
     const firstName = currentUserFullName.split(" ")[0];
-    document.getElementById("emailInput").placeholder = `Hi Dr. ${firstName}!`;
+    document.getElementById("emailInput").placeholder = `Hi Dr. ${firstName}! Please enter your KU email address`;
 }
 
 function verifyEmail() {
