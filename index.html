@@ -1884,11 +1884,11 @@ function generateFacultySignatoryForm() {
     }
 
     // Prompt user for College, Department, Semester
-    const college = prompt("Enter College Name (الكلية):", "كلية العمارة");
+    const college = prompt("Enter College Name (الكلية):", "كلية العمارة ");
     if (college === null) return;
     const department = prompt("Enter Department Name (القسم العلمي):", "قسم العمارة ");
     if (department === null) return;
-    const semester = prompt("Enter Semester (الفصل الدراسي):", "الفصل الأول 2026/2027");
+    const semester = prompt("Enter Semester (الفصل الدراسي):", "الفصل الأول 2025/2026");
     if (semester === null) return;
 
     // Build HTML for all instructors
@@ -2230,7 +2230,7 @@ function generateTASignatoryForm() {
     if (college === null) return;
     const department = prompt("Enter Department Name (القسم العلمي):", "قسم العمارة ");
     if (department === null) return;
-    const semester = prompt("Enter Semester (الفصل الدراسي):", "الفصل الأول 2026/2027");
+    const semester = prompt("Enter Semester (الفصل الدراسي):", "الفصل الأول 2025/2026");
     if (semester === null) return;
 
     // Build HTML for all TAs
@@ -2336,31 +2336,54 @@ function generateTASignatoryForm() {
             `;
 
             // Generate rows for this page
-            for (let i = 0; i < pageCourses.length; i++) {
-                const course = pageCourses[i];
-                const catalogInfo = getCatalogInfo(course.courseNo);
-                const seqNumber = startIdx + i + 1;
-                
-                // Theoretical hours (تدريس)
-                const teachHours = catalogInfo?.theoretical_hours || 0;
-                const teachUnits = course.credits || catalogInfo?.credits || 0;
-                
-                // Practical hours (مختبرات/حل مسائل)
-                const labHours = catalogInfo?.practical_hours || 0;
-                const labUnits = course.credits || catalogInfo?.credits || 0;
-                
-                allPagesHtml += `
-                        <tr>
-                            <td>${seqNumber}</td>
-                            <td>${course.courseName || '-'}</td>
-                            <td>${course.courseNo || '-'} / ${course.section || '-'}</td>
-                            <td>${course.days || '-'}</td>
-                            <td>${course.start || ''}${course.start && course.end ? '-' : ''}${course.end || ''}</td>
-                            <td><div class="split"><span>${teachHours}</span><span>${teachUnits}</span></div></td>
-                            <td><div class="split"><span>${labHours}</span><span>${labUnits}</span></div></td>
-                        </tr>
-                `;
-            }
+for (let i = 0; i < pageCourses.length; i++) {
+    const course = pageCourses[i];
+    const catalogInfo = getCatalogInfo(course.courseNo);
+    const seqNumber = startIdx + i + 1;
+    
+    // Check if this is a 100-level course (courseNo starts with "1")
+    const is100Level = course.courseNo && String(course.courseNo).startsWith("1");
+    
+    // Check if TA is sole instructor (no faculty OR instructor is "TBD" or empty)
+    const hasFacultyInstructor = course.instructor && 
+                                 course.instructor.trim() !== "" && 
+                                 course.instructor !== "TBD";
+    const isSoleInstructor = !hasFacultyInstructor;
+    
+    // Teaching Column (تدريس) - only show theoretical hours if:
+    // 1. TA is sole instructor AND
+    // 2. Course is 100-level
+    let teachHours = "-";
+    let teachUnits = "-";
+    
+    if (isSoleInstructor && is100Level) {
+        teachHours = catalogInfo?.theoretical_hours || 0;
+        teachUnits = course.credits || catalogInfo?.credits || 0;
+    }
+    
+    // Lab Column (مختبرات/حل مسائل) - always show practical hours
+    // (TAs always help with labs/practical regardless of level or faculty presence)
+    let labHours = catalogInfo?.practical_hours || 0;
+    let labUnits = course.credits || catalogInfo?.credits || 0;
+    
+    // If no practical hours, show dash
+    if (labHours === 0) {
+        labHours = "-";
+        labUnits = "-";
+    }
+    
+    allPagesHtml += `
+        <tr>
+            <td>${seqNumber}</td>
+            <td>${course.courseName || '-'}</td>
+            <td>${course.courseNo || '-'} / ${course.section || '-'}</td>
+            <td>${course.days || '-'}</td>
+            <td>${course.start || ''}${course.start && course.end ? '-' : ''}${course.end || ''}</td>
+            <td><div class="split"><span>${teachHours}</span><span>${teachUnits}</span></div></td>
+            <td><div class="split"><span>${labHours}</span><span>${labUnits}</span></div></td>
+        </tr>
+    `;
+}
 
             // Fill remaining rows if less than 6 on last page
             if (pageNum === totalPages - 1 && pageCourses.length < coursesPerPage) {
