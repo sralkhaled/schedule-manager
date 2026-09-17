@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Schedule Manager - BETA</title>
+    <title>Schedule Manager - BETA 1.0</title>
     <style>
         /* ========== RESET & BASE ========== */
         * {
@@ -1018,7 +1018,7 @@
                         
                         <p><strong>AUDIT VISUALIZATION (Instructor/TA Coloring):</strong><br>
                         • <strong>INSTRUCTOR NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total theoretical teaching hours across all assigned courses are ≥6 for Sciences and ≥9 for Humanities. Turn <span style="color:#c62828; font-weight:bold;">RED</span> when below the required threshold.<br>
-                        • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total practical hours are ≥9. If a TA is assigned to a course without an instructor, both theoretical and practical hours are combined toward the workload threshold. Otherwise, the name appears <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
+                        • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when the credited TA workload is ≥15 hours. Each TA-assigned course contributes only once: if the course has practical hours, only those practical hours are counted; if the course has no practical hours, its theoretical hours count as teaching assistance; if the TA teaches the course without a faculty instructor, both theoretical and practical hours are counted. This prevents double-counting within the same course. Otherwise, the name appears <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
                         
                         <p><strong>CONFLICT DETECTION:</strong><br>
                         • Room and time conflicts are automatically highlighted.<br>
@@ -1511,27 +1511,76 @@ function showUpdateNotice() {
         }
 
         // ========== PERSON HOURS & DISPLAY ==========
+        function hasFacultyInstructor(course) {
+            const instructor = String(course?.instructor || "").trim();
+            return instructor !== "" && instructor.toUpperCase() !== "TBD";
+        }
+
+        function getTACourseLoadContribution(course) {
+            const cat = getCatalogInfo(course.courseNo);
+            const theo = cat ? (Number(cat.theoretical_hours) || 0) : 0;
+            const prac = cat ? (Number(cat.practical_hours) || 0) : 0;
+            const hasInstructor = hasFacultyInstructor(course);
+
+            // A TA-assigned course contributes only once to the credited load.
+            // 1) Solo-taught course: theoretical + practical hours count.
+            // 2) Faculty present + practical component: practical hours only.
+            // 3) Faculty present + no practical component: theoretical hours count as teaching assistance.
+            if (!hasInstructor) {
+                return {
+                    practical: prac,
+                    soloTheoretical: theo,
+                    assistance: 0,
+                    credited: theo + prac,
+                    mode: "solo"
+                };
+            }
+
+            if (prac > 0) {
+                return {
+                    practical: prac,
+                    soloTheoretical: 0,
+                    assistance: 0,
+                    credited: prac,
+                    mode: "practical"
+                };
+            }
+
+            return {
+                practical: 0,
+                soloTheoretical: 0,
+                assistance: theo,
+                credited: theo,
+                mode: "assistance"
+            };
+        }
+
         function computePersonHours(schedule) {
             let instructorMap = new Map();
             let taMap = new Map();
             for (let c of schedule) {
                 let cat = getCatalogInfo(c.courseNo);
-                let theo = cat ? (cat.theoretical_hours || 0) : 0;
-                let prac = cat ? (cat.practical_hours || 0) : 0;
-                if (c.instructor && c.instructor !== "TBD") {
+                let theo = cat ? (Number(cat.theoretical_hours) || 0) : 0;
+                let prac = cat ? (Number(cat.practical_hours) || 0) : 0;
+                if (hasFacultyInstructor(c)) {
                     let inst = instructorMap.get(c.instructor) || { theo: 0, prac: 0 };
                     inst.theo += theo;
                     instructorMap.set(c.instructor, inst);
                 }
-                if (c.ta && c.ta !== "") {
-                    let ta = taMap.get(c.ta) || { theo: 0, prac: 0 };
-                    let hasInstructor = (c.instructor && c.instructor !== "TBD");
-                    if (!hasInstructor) {
-                        ta.theo += theo;
-                        ta.prac += prac;
-                    } else {
-                        ta.prac += prac;
-                    }
+                if (c.ta && c.ta.trim() !== "") {
+                    let ta = taMap.get(c.ta) || {
+                        theo: 0,
+                        prac: 0,
+                        soloTheoretical: 0,
+                        assistance: 0,
+                        credited: 0
+                    };
+                    const contribution = getTACourseLoadContribution(c);
+                    ta.prac += contribution.practical;
+                    ta.soloTheoretical += contribution.soloTheoretical;
+                    ta.assistance += contribution.assistance;
+                    ta.theo += contribution.soloTheoretical + contribution.assistance;
+                    ta.credited += contribution.credited;
                     taMap.set(c.ta, ta);
                 }
             }
@@ -1541,29 +1590,18 @@ function showUpdateNotice() {
         function getPersonDisplay(name, type, hoursMap, scheduleForTaCheck = null) {
             let data = hoursMap.get(name);
             if (!data) return { html: name + " (0)", isValid: false };
-            let total = (type === 'instructor') ? data.theo : data.prac;
-            let threshold = 6;
+
+            let total;
+            let threshold;
             if (type === 'instructor') {
+                total = data.theo;
                 threshold = isHumanitiesMode ? 9 : 6;
             } else {
-                threshold = 9;
+                total = data.credited ?? ((data.theo || 0) + (data.prac || 0));
+                threshold = 15;
             }
+
             let isValid = total >= threshold;
-            if (type === 'ta' && scheduleForTaCheck) {
-                let aloneTotal = 0;
-                for (let c of scheduleForTaCheck) {
-                    if (c.ta === name && (!c.instructor || c.instructor === "TBD")) {
-                        let cat = getCatalogInfo(c.courseNo);
-                        let theo = cat ? (cat.theoretical_hours || 0) : 0;
-                        let prac = cat ? (cat.practical_hours || 0) : 0;
-                        aloneTotal += (theo + prac);
-                    }
-                }
-                if (aloneTotal > 0) {
-                    total = aloneTotal;
-                    isValid = total >= 9;
-                }
-            }
             let colorClass = isValid ? 'instructor-green' : 'instructor-red';
             return { html: `<span class="${colorClass}">${name} (${total})</span>`, isValid };
         }
@@ -2719,10 +2757,10 @@ function showUpdateNotice() {
 
         function downloadTALoadsCSV() {
             const { taMap } = computePersonHours(currentSchedule);
-            let rows = [["Name", "Theoretical Hours", "Practical Hours", "Total Hours", "Assigned Courses"]];
+            let rows = [["Name", "Practical Hours", "Solo Theoretical Hours", "Teaching Assistance Hours", "Credited Total Hours", "Assigned Courses"]];
             taMap.forEach((data, name) => {
                 let assigned = currentSchedule.filter(c => c.ta === name).map(c => `${c.courseNo}-${c.section}`).join("; ");
-                rows.push([name, data.theo, data.prac, data.theo + data.prac, assigned]);
+                rows.push([name, data.prac, data.soloTheoretical, data.assistance, data.credited, assigned]);
             });
             downloadCSV(rows, "ta_loads.csv");
         }
@@ -2970,22 +3008,33 @@ function showUpdateNotice() {
                         const course = pageCourses[i];
                         const catalogInfo = getCatalogInfo(course.courseNo);
                         const seqNumber = startIdx + i + 1;
-                        const is100Level = course.courseNo && String(course.courseNo).startsWith("1");
-                        const hasFacultyInstructor = course.instructor && course.instructor.trim() !== "" && course.instructor !== "TBD";
-                        const isSoleInstructor = !hasFacultyInstructor;
-                        
+                        const contribution = getTACourseLoadContribution(course);
+                        const courseUnits = course.credits || catalogInfo?.credits || 0;
+
+                        // Keep the official form columns, but apply the same no-double-counting rule
+                        // used by the TA audit and CSV report.
                         let teachHours = "-";
                         let teachUnits = "-";
-                        if (isSoleInstructor && is100Level) {
-                            teachHours = catalogInfo?.theoretical_hours || 0;
-                            teachUnits = course.credits || catalogInfo?.credits || 0;
-                        }
-                        
-                        let labHours = catalogInfo?.practical_hours || 0;
-                        let labUnits = course.credits || catalogInfo?.credits || 0;
-                        if (labHours === 0) {
-                            labHours = "-";
-                            labUnits = "-";
+                        let labHours = "-";
+                        let labUnits = "-";
+
+                        if (contribution.mode === "solo") {
+                            if (contribution.soloTheoretical > 0) {
+                                teachHours = contribution.soloTheoretical;
+                                teachUnits = courseUnits;
+                            }
+                            if (contribution.practical > 0) {
+                                labHours = contribution.practical;
+                                labUnits = courseUnits;
+                            }
+                        } else if (contribution.mode === "practical") {
+                            labHours = contribution.practical;
+                            labUnits = courseUnits;
+                        } else if (contribution.mode === "assistance") {
+                            if (contribution.assistance > 0) {
+                                teachHours = contribution.assistance;
+                                teachUnits = courseUnits;
+                            }
                         }
                         
                         allPagesHtml += `<tr><td>${seqNumber}</td><td>${course.courseName || '-'}</td><td>${course.courseNo || '-'} / ${course.section || '-'}</td><td>${course.days || '-'}</td><td>${course.start || ''}${course.start && course.end ? '-' : ''}${course.end || ''}</td><td><div class="split"><span>${teachHours}</span><span>${teachUnits}</span></div></td><td><div class="split"><span>${labHours}</span><span>${labUnits}</span></div></td></tr>`;
