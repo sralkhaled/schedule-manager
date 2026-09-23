@@ -1172,6 +1172,7 @@
             "21401652": { fullName: "Saud Alkhaled", emailPrefix: "saud.alkhaled" },
             "212010238": { fullName: "Yousef Abdulsalam", emailPrefix: "y.abdulsalam" },
             "21109776": { fullName: "Benyameen Ghareeb", emailPrefix: "benyameen.ghareeb" },
+            "21601127": { fullName: "Rua Alshaheen", emailPrefix: "rua.alshaheen" },
             "20800890": { fullName: "May Almoftah", emailPrefix: "mai.almuftah" }
         };
 
@@ -2150,7 +2151,7 @@ function showUpdateNotice() {
                 { label: "Course No", field: "courseNo" },
                 { label: "Course Name", field: "courseName" },
                 { label: "Dept", field: null },
-                { label: "Cred", field: "credits" },
+                { label: "Cred (Thr;Pract)", field: "credits" },
                 { label: "Days", field: null },
                 { label: "Start", field: "start" },
                 { label: "End", field: "end" },
@@ -2208,7 +2209,7 @@ function showUpdateNotice() {
                 html += `<td>${c.courseNo || '-'}</td>`;
                 html += `<td><strong>${c.courseName}</strong> ${categoryBadge}</td>`;
                 html += `<td>${c.dept}${catalogInfo ? `<br><span style="font-size:0.6rem;">${catalogInfo.category}</span>` : ''}</td>`;
-                html += `<td>${c.credits}</td>`;
+                html += `<td>${c.credits}${catalogInfo ? ` (${catalogInfo.theoretical_hours || 0};${catalogInfo.practical_hours || 0})` : ''}</td>`;
                 html += `<td>${decodeDays(c.days)}</td>`;
                 html += `<td>${c.start}</td>`;
                 html += `<td>${c.end}</td>`;
