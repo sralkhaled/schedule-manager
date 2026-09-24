@@ -1839,7 +1839,9 @@ function showUpdateNotice() {
             let colorClass = isValid ? 'instructor-green' : 'instructor-red';
             if (type === 'ta') {
                 const contact = data.contact || 0;
-                return { html: `<span class="${colorClass}" title="Credited total: ${total} hours | Contact hours: ${contact} hours">${name} (${total})</span>`, isValid };
+                const theoretical = data.theo || 0;
+                const practical = data.prac || 0;
+                return { html: `<span class="${colorClass}" title="Credited total: ${total} hours | Contact hours: ${contact} hours">${name} (${theoretical};${practical})</span>`, isValid };
             }
             return { html: `<span class="${colorClass}">${name} (${total})</span>`, isValid };
         }
@@ -2396,7 +2398,7 @@ function showUpdateNotice() {
                 { label: "Building", field: "building" },
                 { label: "Room", field: "room" },
                 { label: "Instructor", field: null },
-                { label: "TA", field: null },
+                { label: "TA (Thr;Pract)", field: null },
                 { label: "Actions", field: null }
             ];
 
