@@ -1018,7 +1018,7 @@
                         
                         <p><strong>AUDIT VISUALIZATION (Instructor/TA Coloring):</strong><br>
                         • <strong>INSTRUCTOR NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total theoretical teaching hours across all assigned courses are ≥6 for Sciences and ≥9 for Humanities. Turn <span style="color:#c62828; font-weight:bold;">RED</span> when below the required threshold.<br>
-                        • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> only when both conditions are met: (1) credited TA workload is ≥15 hours, and (2) contact hours are ≥9. Contact hours are the hours that require physical presence: practical hours count as contact hours, and for solo-taught sub-200 courses, both theoretical and practical hours count toward the contact requirement. In the TA display, qualifying theoretical hours from solo sub-200 teaching are included in the <strong>Pract</strong> total to reflect this contact-hour requirement. Assistance-only hours without practicals count toward the 15-hour total but not toward the 9-hour contact requirement. The dashboard suggests conflict-free contact assignments first, then assistance assignments where needed to reach the total load. Otherwise, the name appears <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
+                        • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> only when both conditions are met: (1) credited TA workload is ≥15 hours, and (2) contact hours are ≥9. Contact hours are the hours that require physical presence: practical hours count as contact hours, and for solo-taught sub-200 courses, both theoretical and practical hours count toward the contact requirement. In the TA display, qualifying theoretical hours from solo sub-200 teaching are included in the <strong>Contact</strong> total to reflect this contact-hour requirement. Assistance-only hours without practicals count toward the 15-hour total but not toward the 9-hour contact requirement. The dashboard suggests conflict-free contact assignments first, then assistance assignments where needed to reach the total load. Otherwise, the name appears <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
                         
                         <p><strong>CONFLICT DETECTION:</strong><br>
                         • Room and time conflicts are automatically highlighted.<br>
@@ -1839,12 +1839,11 @@ function showUpdateNotice() {
             let colorClass = isValid ? 'instructor-green' : 'instructor-red';
             if (type === 'ta') {
                 const contact = data.contact || 0;
-                // For the TA display, the Pract bucket represents contact/practical-equivalent hours.
-                // Qualifying theoretical hours from solo-taught sub-200 courses are therefore moved
-                // from Thr into Pract so the two displayed values still sum to the credited total.
-                const practical = contact;
-                const theoretical = Math.max(0, total - practical);
-                return { html: `<span class="${colorClass}" title="Credited total: ${total} hours | Contact/Practical-equivalent: ${practical} hours">${name} (${theoretical};${practical})</span>`, isValid };
+                // TA display shows credited theoretical/assistance hours versus contact hours.
+                // Qualifying theoretical hours from solo-taught sub-200 courses are included
+                // in Contact so the two displayed values still sum to the credited total.
+                const theoretical = Math.max(0, total - contact);
+                return { html: `<span class="${colorClass}" title="Credited total: ${total} hours | Contact: ${contact} hours">${name} (${theoretical};${contact})</span>`, isValid };
             }
             return { html: `<span class="${colorClass}">${name} (${total})</span>`, isValid };
         }
@@ -2401,7 +2400,7 @@ function showUpdateNotice() {
                 { label: "Building", field: "building" },
                 { label: "Room", field: "room" },
                 { label: "Instructor", field: null },
-                { label: "TA (Thr;Pract)", field: null },
+                { label: "TA (Thr;Contact)", field: null },
                 { label: "Actions", field: null }
             ];
 
