@@ -1490,6 +1490,11 @@ function showUpdateNotice() {
                     if (!ignoreInstructorConflicts && a.instructor === b.instructor && a.instructor && a.instructor !== "TBD") {
                         conflicts.push({ courseA: a, courseB: b, type: "instructor", message: `Instructor ${a.instructor} conflict with "${b.courseName}"` });
                     }
+                    const taA = String(a.ta || "").trim();
+                    const taB = String(b.ta || "").trim();
+                    if (taA && taA.toUpperCase() !== "TBD" && taA === taB) {
+                        conflicts.push({ courseA: a, courseB: b, type: "TA", message: `TA ${taA} conflict with "${b.courseName}"` });
+                    }
                 }
             }
             return conflicts;
@@ -1507,6 +1512,11 @@ function showUpdateNotice() {
                 }
                 if (!ignoreInstructorConflicts && editedCourse.instructor === other.instructor && editedCourse.instructor) {
                     conflicts.push({ type: "instructor", message: `Instructor ${editedCourse.instructor} already teaching "${other.courseName}"` });
+                }
+                const editedTA = String(editedCourse.ta || "").trim();
+                const otherTA = String(other.ta || "").trim();
+                if (editedTA && editedTA.toUpperCase() !== "TBD" && editedTA === otherTA) {
+                    conflicts.push({ type: "TA", message: `TA ${editedTA} already assigned to "${other.courseName}"` });
                 }
             }
             return conflicts;
