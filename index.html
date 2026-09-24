@@ -1018,7 +1018,7 @@
                         
                         <p><strong>AUDIT VISUALIZATION (Instructor/TA Coloring):</strong><br>
                         • <strong>INSTRUCTOR NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when total theoretical teaching hours across all assigned courses are ≥6 for Sciences and ≥9 for Humanities. Turn <span style="color:#c62828; font-weight:bold;">RED</span> when below the required threshold.<br>
-                        • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> when the credited TA workload is ≥15 hours. Each TA-assigned course contributes only once: if the course has practical hours, only those practical hours are counted; if the course has no practical hours, its theoretical hours count as teaching assistance; if the TA teaches the course without a faculty instructor, both theoretical and practical hours are counted. This prevents double-counting within the same course. Otherwise, the name appears <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
+                        • <strong>TA NAMES</strong> – Turn <span style="color:#2e7d32; font-weight:bold;">GREEN</span> only when both conditions are met: (1) credited TA workload is ≥15 hours, and (2) contact hours are ≥9. Contact hours are the hours that require physical presence: practical hours count as contact hours, and for solo-taught sub-200 courses the theoretical and practical hours both count. Assistance-only hours without practicals still count toward the 15-hour total but do not count toward the 9-hour contact requirement. The dashboard suggests conflict-free contact assignments first, then assistance assignments where needed to reach the total load. Otherwise, the name appears <span style="color:#c62828; font-weight:bold;">RED</span>.</p>
                         
                         <p><strong>CONFLICT DETECTION:</strong><br>
                         • Room and time conflicts are automatically highlighted.<br>
@@ -1156,6 +1156,7 @@
             <div class="table-wrapper" id="scheduleTableContainer"></div>
             <div id="calendarPopover" class="calendar-popover"></div>
             <div id="conflictSection" class="conflict-section" style="display:none"></div>
+            <div id="taSuggestionSection" class="conflict-suggestion-box" style="display:none"></div>
             <div id="coreqSection" class="coreq-section" style="display:none"></div>
         </div>
     </div>
@@ -1173,6 +1174,7 @@
             "212010238": { fullName: "Yousef Abdulsalam", emailPrefix: "y.abdulsalam" },
             "21109776": { fullName: "Benyameen Ghareeb", emailPrefix: "benyameen.ghareeb" },
             "21601127": { fullName: "Rua Alshaheen", emailPrefix: "rua.alshaheen" },
+            "212010343": { fullName: "Fahad Ben Salamah", emailPrefix: "fahad.bensalamah" },
             "20800890": { fullName: "May Almoftah", emailPrefix: "mai.almuftah" }
         };
 
@@ -1490,10 +1492,9 @@ function showUpdateNotice() {
                     if (!ignoreInstructorConflicts && a.instructor === b.instructor && a.instructor && a.instructor !== "TBD") {
                         conflicts.push({ courseA: a, courseB: b, type: "instructor", message: `Instructor ${a.instructor} conflict with "${b.courseName}"` });
                     }
-                    const taA = String(a.ta || "").trim();
-                    const taB = String(b.ta || "").trim();
-                    if (taA && taA.toUpperCase() !== "TBD" && taA === taB) {
-                        conflicts.push({ courseA: a, courseB: b, type: "TA", message: `TA ${taA} conflict with "${b.courseName}"` });
+                    const taName = String(a.ta || "").trim();
+                    if (shouldFlagTAConflict(a, b) && taName && taName.toUpperCase() !== "TBD") {
+                        conflicts.push({ courseA: a, courseB: b, type: "TA", message: `TA ${taName} contact-hour conflict with "${b.courseName}"` });
                     }
                 }
             }
@@ -1514,9 +1515,8 @@ function showUpdateNotice() {
                     conflicts.push({ type: "instructor", message: `Instructor ${editedCourse.instructor} already teaching "${other.courseName}"` });
                 }
                 const editedTA = String(editedCourse.ta || "").trim();
-                const otherTA = String(other.ta || "").trim();
-                if (editedTA && editedTA.toUpperCase() !== "TBD" && editedTA === otherTA) {
-                    conflicts.push({ type: "TA", message: `TA ${editedTA} already assigned to "${other.courseName}"` });
+                if (shouldFlagTAConflict(editedCourse, other) && editedTA && editedTA.toUpperCase() !== "TBD") {
+                    conflicts.push({ type: "TA", message: `TA ${editedTA} already has a contact-hour assignment in "${other.courseName}"` });
                 }
             }
             return conflicts;
@@ -1528,13 +1528,231 @@ function showUpdateNotice() {
             return instructor !== "" && instructor.toUpperCase() !== "TBD";
         }
 
+        function getCourseNumericLevel(course) {
+            const digits = String(course?.courseNo || "").replace(/\D/g, "");
+            if (digits.length < 3) return NaN;
+            return Number(digits.slice(-3));
+        }
+
+        function getTAContactProfile(course) {
+            const cat = getCatalogInfo(course.courseNo);
+            const theo = cat ? (Number(cat.theoretical_hours) || 0) : 0;
+            const prac = cat ? (Number(cat.practical_hours) || 0) : 0;
+            const level = getCourseNumericLevel(course);
+            const hasInstructor = hasFacultyInstructor(course);
+            const isSub200Solo = !hasInstructor && Number.isFinite(level) && level < 200;
+            const contactHours = isSub200Solo ? (theo + prac) : prac;
+            return {
+                level,
+                theo,
+                prac,
+                hasInstructor,
+                isSub200Solo,
+                contactHours,
+                presenceRequired: contactHours > 0,
+                mode: isSub200Solo ? "solo-sub200" : (prac > 0 ? "practical" : "assistance")
+            };
+        }
+
+        function coursesOverlap(courseA, courseB) {
+            const daysA = getDayNumbers(courseA.days || "");
+            const daysB = getDayNumbers(courseB.days || "");
+            return daysA.some(d => daysB.includes(d)) && timesOverlap(courseA.start, courseA.end, courseB.start, courseB.end);
+        }
+
+        function isTAUnassigned(course) {
+            const ta = String(course?.ta || "").trim();
+            return ta === "" || ta.toUpperCase() === "TBD";
+        }
+
+        function isEligibleTASuggestionCourse(course) {
+            if (!isTAUnassigned(course)) return false;
+            const profile = getTAContactProfile(course);
+            const contribution = getTACourseLoadContribution(course);
+            if (contribution.credited <= 0) return false;
+            // Do not recommend a TA as sole instructor for 200-level-or-higher courses.
+            if (!profile.hasInstructor && (!Number.isFinite(profile.level) || profile.level >= 200)) return false;
+            return true;
+        }
+
+        function candidateHasTAContactConflict(taName, candidate, schedule, excludedIds = new Set(), provisional = []) {
+            const simulated = { ...candidate, ta: taName };
+            const simulatedProfile = getTAContactProfile(simulated);
+            if (!simulatedProfile.presenceRequired) return false;
+
+            const existingContact = schedule.filter(course => {
+                if (excludedIds.has(course.id)) return false;
+                if (String(course.ta || "").trim() !== taName) return false;
+                return getTAContactProfile(course).presenceRequired;
+            });
+
+            for (const course of existingContact) {
+                if (coursesOverlap(simulated, course)) return true;
+            }
+            for (const course of provisional) {
+                if (getTAContactProfile(course).presenceRequired && coursesOverlap(simulated, course)) return true;
+            }
+            return false;
+        }
+
+        function getTAAlternativeSections(course, schedule, limit = 5) {
+            const taName = String(course?.ta || "").trim();
+            if (!taName || taName.toUpperCase() === "TBD") return [];
+            const excludedIds = new Set([course.id]);
+            return schedule
+                .filter(candidate => candidate.id !== course.id && candidate.courseNo === course.courseNo && isEligibleTASuggestionCourse(candidate))
+                .filter(candidate => !candidateHasTAContactConflict(taName, candidate, schedule, excludedIds))
+                .sort((a, b) => toMinutes(a.start) - toMinutes(b.start) || String(a.section).localeCompare(String(b.section)))
+                .slice(0, limit);
+        }
+
+        function getTAUnderloadSuggestionPlan(taName, schedule, limit = 6) {
+            const { taMap } = computePersonHours(schedule);
+            const current = taMap.get(taName) || { contact: 0, credited: 0 };
+            let projectedContact = current.contact || 0;
+            let projectedTotal = current.credited || 0;
+            const selected = [];
+            const selectedIds = new Set();
+            const candidates = schedule.filter(isEligibleTASuggestionCourse);
+
+            const contactCandidates = candidates
+                .filter(c => getTAContactProfile(c).contactHours > 0)
+                .sort((a, b) => {
+                    const pa = getTAContactProfile(a), pb = getTAContactProfile(b);
+                    const ca = getTACourseLoadContribution(a), cb = getTACourseLoadContribution(b);
+                    return (pb.contactHours - pa.contactHours) || (cb.credited - ca.credited) || toMinutes(a.start) - toMinutes(b.start);
+                });
+
+            for (const candidate of contactCandidates) {
+                if (projectedContact >= 9 || selected.length >= limit) break;
+                if (candidateHasTAContactConflict(taName, candidate, schedule, new Set(), selected.map(s => s.course))) continue;
+                const profile = getTAContactProfile(candidate);
+                const contribution = getTACourseLoadContribution(candidate);
+                selected.push({ course: candidate, contact: profile.contactHours, credited: contribution.credited, kind: "contact" });
+                selectedIds.add(candidate.id);
+                projectedContact += profile.contactHours;
+                projectedTotal += contribution.credited;
+            }
+
+            if (projectedTotal < 15 && selected.length < limit) {
+                const assistanceCandidates = candidates
+                    .filter(c => !selectedIds.has(c.id) && getTAContactProfile(c).contactHours === 0)
+                    .sort((a, b) => getTACourseLoadContribution(b).credited - getTACourseLoadContribution(a).credited || toMinutes(a.start) - toMinutes(b.start));
+                for (const candidate of assistanceCandidates) {
+                    if (projectedTotal >= 15 || selected.length >= limit) break;
+                    const contribution = getTACourseLoadContribution(candidate);
+                    selected.push({ course: candidate, contact: 0, credited: contribution.credited, kind: "assistance" });
+                    selectedIds.add(candidate.id);
+                    projectedTotal += contribution.credited;
+                }
+            }
+
+            if (projectedTotal < 15 && selected.length < limit) {
+                for (const candidate of contactCandidates) {
+                    if (projectedTotal >= 15 || selected.length >= limit) break;
+                    if (selectedIds.has(candidate.id)) continue;
+                    if (candidateHasTAContactConflict(taName, candidate, schedule, new Set(), selected.map(s => s.course))) continue;
+                    const profile = getTAContactProfile(candidate);
+                    const contribution = getTACourseLoadContribution(candidate);
+                    selected.push({ course: candidate, contact: profile.contactHours, credited: contribution.credited, kind: "contact" });
+                    selectedIds.add(candidate.id);
+                    projectedContact += profile.contactHours;
+                    projectedTotal += contribution.credited;
+                }
+            }
+
+            return {
+                currentContact: current.contact || 0,
+                currentTotal: current.credited || 0,
+                projectedContact,
+                projectedTotal,
+                suggestions: selected
+            };
+        }
+
+        function formatTASuggestionCourse(item) {
+            const c = item.course;
+            const contactText = item.contact > 0 ? `+${item.contact} contact` : `+${item.credited} assistance`;
+            return `<div class="suggestion-item" style="margin:6px 0;">
+                <strong>${c.courseNo}-${c.section}</strong> · ${decodeDays(c.days)} ${c.start}-${c.end} · ${contactText}, +${item.credited} total
+                <button class="quick-fix-btn" onclick="window.openEditorById('${c.id}')">Edit section</button>
+            </div>`;
+        }
+
+        function buildTAUnderloadRecommendationsHtml(schedule) {
+            const { taMap } = computePersonHours(schedule);
+            const taNames = [...taMap.keys()].filter(name => String(name || "").trim() && String(name).toUpperCase() !== "TBD");
+            const underloaded = taNames.filter(name => {
+                const d = taMap.get(name);
+                return (d.contact || 0) < 9 || (d.credited || 0) < 15;
+            });
+            if (!underloaded.length) return "";
+
+            let html = `<h3 style="margin-top:0;">TA Load Recommendations</h3>`;
+            underloaded.forEach(name => {
+                const plan = getTAUnderloadSuggestionPlan(name, schedule);
+                html += `<div style="margin:10px 0 14px;padding-bottom:10px;border-bottom:1px solid #cbd5e1;">
+                    <strong>${name}</strong> — Contact ${plan.currentContact}/9 · Total ${plan.currentTotal}/15`;
+                if (plan.suggestions.length) {
+                    html += `<div style="margin-top:5px;"><strong>Suggested assignments:</strong></div>`;
+                    plan.suggestions.forEach(item => { html += formatTASuggestionCourse(item); });
+                    html += `<div style="font-size:0.67rem;color:#516070;margin-top:5px;">Projected if all listed assignments are used: Contact ${plan.projectedContact}/9 · Total ${plan.projectedTotal}/15. Contact-hour suggestions are mutually non-conflicting; assistance-only overlaps are allowed.</div>`;
+                } else {
+                    html += `<div class="suggestion-item" style="color:#b35f00;margin-top:5px;">No suitable unassigned sections were found in the current schedule.</div>`;
+                }
+                html += `</div>`;
+            });
+            return html;
+        }
+
+        function renderTARecommendationPanel(schedule) {
+            const el = document.getElementById("taSuggestionSection");
+            if (!el) return;
+            if (currentRole !== "admin" || !schedule || !schedule.length) {
+                el.innerHTML = "";
+                el.style.display = "none";
+                return;
+            }
+            const html = buildTAUnderloadRecommendationsHtml(schedule);
+            el.innerHTML = html;
+            el.style.display = html ? "block" : "none";
+        }
+
+        function buildTAConflictAlternativesHtml(conflict, schedule) {
+            if (!conflict || conflict.type !== "TA") return "";
+            const taName = String(conflict.courseA.ta || conflict.courseB.ta || "").trim();
+            const parts = [];
+            [conflict.courseA, conflict.courseB].forEach(course => {
+                const alternatives = getTAAlternativeSections(course, schedule, 4);
+                if (alternatives.length) {
+                    const links = alternatives.map(alt => `<strong>${alt.courseNo}-${alt.section}</strong> (${decodeDays(alt.days)} ${alt.start}-${alt.end}) <button class="quick-fix-btn" onclick="window.openEditorById('${alt.id}')">Edit</button>`).join(' · ');
+                    parts.push(`${course.courseNo}-${course.section}: ${links}`);
+                }
+            });
+            if (!parts.length) {
+                return `<div class="suggestion-item" style="margin-top:6px;color:#b35f00;">No unassigned non-conflicting alternative sections of the same course were found for ${taName}.</div>`;
+            }
+            return `<div class="suggestion-item" style="margin-top:6px;"><strong>Alternative non-conflicting sections for ${taName}:</strong><br>${parts.join('<br>')}</div>`;
+        }
+
+        function shouldFlagTAConflict(courseA, courseB) {
+            const taA = String(courseA?.ta || "").trim();
+            const taB = String(courseB?.ta || "").trim();
+            if (!taA || !taB || taA.toUpperCase() === "TBD" || taB.toUpperCase() === "TBD" || taA !== taB) {
+                return false;
+            }
+            const profileA = getTAContactProfile(courseA);
+            const profileB = getTAContactProfile(courseB);
+            return profileA.presenceRequired && profileB.presenceRequired;
+        }
+
         function getTACourseLoadContribution(course) {
             const cat = getCatalogInfo(course.courseNo);
             const theo = cat ? (Number(cat.theoretical_hours) || 0) : 0;
             const prac = cat ? (Number(cat.practical_hours) || 0) : 0;
             const hasInstructor = hasFacultyInstructor(course);
 
-            // A TA-assigned course contributes only once to the credited load.
+            // Credited TA load rules:
             // 1) Solo-taught course: theoretical + practical hours count.
             // 2) Faculty present + practical component: practical hours only.
             // 3) Faculty present + no practical component: theoretical hours count as teaching assistance.
@@ -1585,14 +1803,17 @@ function showUpdateNotice() {
                         prac: 0,
                         soloTheoretical: 0,
                         assistance: 0,
-                        credited: 0
+                        credited: 0,
+                        contact: 0
                     };
                     const contribution = getTACourseLoadContribution(c);
+                    const contactProfile = getTAContactProfile(c);
                     ta.prac += contribution.practical;
                     ta.soloTheoretical += contribution.soloTheoretical;
                     ta.assistance += contribution.assistance;
                     ta.theo += contribution.soloTheoretical + contribution.assistance;
                     ta.credited += contribution.credited;
+                    ta.contact += contactProfile.contactHours;
                     taMap.set(c.ta, ta);
                 }
             }
@@ -1604,17 +1825,22 @@ function showUpdateNotice() {
             if (!data) return { html: name + " (0)", isValid: false };
 
             let total;
-            let threshold;
+            let isValid;
             if (type === 'instructor') {
                 total = data.theo;
-                threshold = isHumanitiesMode ? 9 : 6;
+                let threshold = isHumanitiesMode ? 9 : 6;
+                isValid = total >= threshold;
             } else {
                 total = data.credited ?? ((data.theo || 0) + (data.prac || 0));
-                threshold = 15;
+                const contact = data.contact || 0;
+                isValid = total >= 15 && contact >= 9;
             }
 
-            let isValid = total >= threshold;
             let colorClass = isValid ? 'instructor-green' : 'instructor-red';
+            if (type === 'ta') {
+                const contact = data.contact || 0;
+                return { html: `<span class="${colorClass}" title="Credited total: ${total} hours | Contact hours: ${contact} hours">${name} (${total})</span>`, isValid };
+            }
             return { html: `<span class="${colorClass}">${name} (${total})</span>`, isValid };
         }
 
@@ -1999,6 +2225,7 @@ function showUpdateNotice() {
                 document.getElementById("scheduleTableContainer").innerHTML = "<div class='calendar-empty'>No courses. Upload CSV or add course.</div>";
                 document.getElementById("filterStats").style.display = "none";
                 document.getElementById("conflictSection").style.display = "none";
+                document.getElementById("taSuggestionSection").style.display = "none";
                 document.getElementById("coreqSection").style.display = "none";
                 return;
             }
@@ -2094,11 +2321,12 @@ function showUpdateNotice() {
             document.getElementById("scheduleTableContainer").innerHTML = html;
             hideCalendarPopover();
             document.getElementById("conflictSection").innerHTML = (currentRole === 'admin' && detailed.length) ? `<h3>Conflicts (${detailed.length})</h3><ul>${detailed.map(c => `<li><strong>${c.courseA.courseName}</strong> vs <strong>${c.courseB.courseName}</strong>: ${c.type}<br><button class="quick-fix-btn" onclick="window.quickFixConflict('${c.courseA.id}', '${c.type}')">Edit ${c.courseA.courseName}</button>
-                <button class="quick-fix-btn" onclick="window.quickFixConflict('${c.courseB.id}', '${c.type}')">Edit ${c.courseB.courseName}</button></li>`).join('')}</ul>` : '';
+                <button class="quick-fix-btn" onclick="window.quickFixConflict('${c.courseB.id}', '${c.type}')">Edit ${c.courseB.courseName}</button>${buildTAConflictAlternativesHtml(c, sortedSchedule)}</li>`).join('')}</ul>` : '';
             document.getElementById("conflictSection").style.display = (currentRole === 'admin' && detailed.length) ? "block" : "none";
             let coreqCourses = Array.from(coreqMap.entries());
             document.getElementById("coreqSection").innerHTML = (currentRole === "admin" && coreqCourses.length && !ignoreCoreqWarnings) ? `<h3>Co-requisite Warnings (${coreqCourses.length} courses)</h3><ul>${coreqCourses.map(([id, violations]) => { let course = sortedSchedule.find(c => c.id === id); return `<li><strong>${course ? course.courseName : 'Course'}</strong>: ${violations.join(', ')}</li>`; }).join('')}</ul>` : '';
             document.getElementById("coreqSection").style.display = (currentRole === "admin" && coreqCourses.length && !ignoreCoreqWarnings) ? "block" : "none";
+            renderTARecommendationPanel(sortedSchedule);
             
             document.querySelectorAll('.calendar-event').forEach(el => {
                 el.addEventListener('click', (event) => {
@@ -2245,13 +2473,14 @@ function showUpdateNotice() {
             updateFilterStats(sortedSchedule.length, sortedSchedule.length);
             
             let conflictHtml = allConflicts.length ? `<h3>Conflicts (${allConflicts.length})</h3><ul>${allConflicts.map(c => `<li><strong>${c.courseA.courseName}</strong> vs <strong>${c.courseB.courseName}</strong>: ${c.type}<br><button class="quick-fix-btn" onclick="window.quickFixConflict('${c.courseA.id}', '${c.type}')">Edit ${c.courseA.courseName}</button>
-                <button class="quick-fix-btn" onclick="window.quickFixConflict('${c.courseB.id}', '${c.type}')">Edit ${c.courseB.courseName}</button></li>`).join('')}</ul>` : '';
+                <button class="quick-fix-btn" onclick="window.quickFixConflict('${c.courseB.id}', '${c.type}')">Edit ${c.courseB.courseName}</button>${buildTAConflictAlternativesHtml(c, sortedSchedule)}</li>`).join('')}</ul>` : '';
             document.getElementById("conflictSection").innerHTML = conflictHtml;
             document.getElementById("conflictSection").style.display = allConflicts.length ? "block" : "none";
             
             let coreqHtml = (currentRole === "admin" && coreqViolations.length && !ignoreCoreqWarnings) ? `<h3>Co-requisite Warnings (${coreqViolations.length} courses)</h3><ul>${coreqViolations.map(v => `<li><strong>${v.course.courseName}</strong>: ${v.violations.join(', ')}</li>`).join('')}</ul>` : '';
             document.getElementById("coreqSection").innerHTML = coreqHtml;
             document.getElementById("coreqSection").style.display = (currentRole === "admin" && coreqViolations.length && !ignoreCoreqWarnings) ? "block" : "none";
+            renderTARecommendationPanel(sortedSchedule);
         }
 
         function getActiveAdminRenderer() {
@@ -2267,6 +2496,7 @@ function showUpdateNotice() {
                 document.getElementById("scheduleTableContainer").innerHTML = "<div style='padding:20px;text-align:center'>No courses. Upload CSV or add course.</div>";
                 document.getElementById("filterStats").style.display = "none";
                 document.getElementById("conflictSection").style.display = "none";
+                document.getElementById("taSuggestionSection").style.display = "none";
                 document.getElementById("coreqSection").style.display = "none";
             }
 
@@ -2296,6 +2526,7 @@ function showUpdateNotice() {
             
             let suggestionsHtml = '';
             let roomConflict = conflicts.find(conf => conf.type === "room");
+            let taConflict = conflicts.find(conf => conf.type === "TA");
             
             if (roomConflict) {
                 let occupiedDuringSlot = new Set();
@@ -2320,9 +2551,22 @@ function showUpdateNotice() {
                 let availableRooms = Array.from(allRooms).filter(room => !occupiedDuringSlot.has(room));
                 
                 if (availableRooms.length > 0) {
-                    suggestionsHtml = `<div class="suggestion-item" style="margin-top:8px;color:#0d47a1;"><strong>Suggested rooms:</strong> ${availableRooms.slice(0, 5).join(', ')}</div>`;
+                    suggestionsHtml += `<div class="suggestion-item" style="margin-top:8px;color:#0d47a1;"><strong>Suggested rooms:</strong> ${availableRooms.slice(0, 5).join(', ')}</div>`;
                 } else if (allRooms.size > 0) {
-                    suggestionsHtml = `<div class="suggestion-item" style="margin-top:8px;color:#b35f00;"><strong>Note:</strong> All rooms busy. Try different time.</div>`;
+                    suggestionsHtml += `<div class="suggestion-item" style="margin-top:8px;color:#b35f00;"><strong>Note:</strong> All rooms busy. Try different time.</div>`;
+                }
+            }
+
+            if (taConflict) {
+                const conflictingContactCourses = currentSchedule
+                    .filter(course => course.id !== id && shouldFlagTAConflict(c, course) && coursesOverlap(c, course))
+                    .map(course => `${course.courseNo}-${course.section} (${decodeDays(course.days)} ${course.start}-${course.end})`);
+                const alternatives = getTAAlternativeSections(c, currentSchedule, 5);
+                suggestionsHtml += `<div class="suggestion-item" style="margin-top:8px;color:#0d47a1;"><strong>TA note:</strong> Only contact-hour TA assignments are treated as timing conflicts. Assistance-only overlaps are allowed. This TA's contact-hour clash is with: ${conflictingContactCourses.join(', ') || 'another contact-hour assignment'}.</div>`;
+                if (alternatives.length) {
+                    suggestionsHtml += `<div class="suggestion-item" style="margin-top:6px;"><strong>Alternative non-conflicting sections/times:</strong> ${alternatives.map(alt => `${alt.courseNo}-${alt.section} (${decodeDays(alt.days)} ${alt.start}-${alt.end})`).join(' · ')}</div>`;
+                } else {
+                    suggestionsHtml += `<div class="suggestion-item" style="margin-top:6px;color:#b35f00;">No unassigned non-conflicting alternative section of this course was found. Use a different TA or move one of the contact-hour assignments.</div>`;
                 }
             }
             
@@ -2653,6 +2897,7 @@ function showUpdateNotice() {
             document.getElementById("rulesStatus").innerHTML = "";
             document.getElementById("scheduleTableContainer").innerHTML = "<div style='padding:20px;text-align:center'>Reset complete. Load a catalog to begin.</div>";
             document.getElementById("conflictSection").style.display = "none";
+            document.getElementById("taSuggestionSection").style.display = "none";
             document.getElementById("coreqSection").style.display = "none";
             updateCourseSuggestions();
             updateDepartmentDropdowns();
@@ -2678,6 +2923,7 @@ function showUpdateNotice() {
                 document.getElementById("scheduleTableContainer").innerHTML = "<div style='padding:20px;text-align:center'>Please load Course Catalog first to see student view.</div>";
                 document.getElementById("filterStats").style.display = "none";
                 document.getElementById("conflictSection").style.display = "none";
+                document.getElementById("taSuggestionSection").style.display = "none";
                 document.getElementById("coreqSection").style.display = "none";
                 hideCalendarPopover();
                 return;
@@ -2698,6 +2944,7 @@ function showUpdateNotice() {
                 document.getElementById("scheduleTableContainer").insertAdjacentHTML('afterbegin', summaryHtml);
                 document.getElementById("scheduleTableContainer").insertAdjacentHTML('beforeend', `<div style="margin-top: 12px; padding: 8px; background: #ffebee; border-radius: 8px; font-size: 0.7rem;"><strong>Note:</strong> Calendar view only shows courses scheduled for the selected class standing. Missing required courses for this standing: ${missingCourses.length}.</div>`);
                 document.getElementById("conflictSection").style.display = "none";
+                document.getElementById("taSuggestionSection").style.display = "none";
                 document.getElementById("coreqSection").style.display = "none";
                 return;
             }
@@ -2742,6 +2989,7 @@ function showUpdateNotice() {
             html += `<div style="margin-top: 12px; padding: 8px; background: #ffebee; border-radius: 8px; font-size: 0.7rem;"><strong>Note:</strong> Red-highlighted courses are required for the selected year but missing from this semester's offerings. Schedule coordinator should evaluate adding these courses.</div>`;
             document.getElementById("scheduleTableContainer").innerHTML = html;
             document.getElementById("conflictSection").style.display = "none";
+            document.getElementById("taSuggestionSection").style.display = "none";
             document.getElementById("coreqSection").style.display = "none";
             hideCalendarPopover();
         }
@@ -2769,10 +3017,10 @@ function showUpdateNotice() {
 
         function downloadTALoadsCSV() {
             const { taMap } = computePersonHours(currentSchedule);
-            let rows = [["Name", "Practical Hours", "Solo Theoretical Hours", "Teaching Assistance Hours", "Credited Total Hours", "Assigned Courses"]];
+            let rows = [["Name", "Practical Hours", "Contact Hours", "Solo Theoretical Hours", "Teaching Assistance Hours", "Credited Total Hours", "Assigned Courses"]];
             taMap.forEach((data, name) => {
                 let assigned = currentSchedule.filter(c => c.ta === name).map(c => `${c.courseNo}-${c.section}`).join("; ");
-                rows.push([name, data.prac, data.soloTheoretical, data.assistance, data.credited, assigned]);
+                rows.push([name, data.prac, data.contact || 0, data.soloTheoretical, data.assistance, data.credited, assigned]);
             });
             downloadCSV(rows, "ta_loads.csv");
         }
