@@ -1175,8 +1175,8 @@
             "21109776": { fullName: "Benyameen Ghareeb", emailPrefix: "benyameen.ghareeb" },
             "21601127": { fullName: "Rua Alshaheen", emailPrefix: "rua.alshaheen" },
             "212010343": { fullName: "Fahad Ben Salamah", emailPrefix: "fahad.bensalamah" },
-            "20301287": { fullName: "Bedor Alhumod", emailPrefix: "bedor.alhumod" },
-            "20800890": { fullName: "May Almoftah", emailPrefix: "mai.almuftah" }
+            "20301287": { fullName: "Bedor Alhumod", emailPrefix: "bedor.alhumod", noDr: true },
+            "20800890": { fullName: "May Almoftah", emailPrefix: "mai.almuftah", noDr: true }
         };
 
         let currentUserFullName = "";
@@ -1200,7 +1200,7 @@
             errorSpan.innerText = "";
             document.getElementById("emailInput").value = "";
             const firstName = currentUserFullName.split(" ")[0];
-            document.getElementById("emailInput").placeholder = `Hi Dr. ${firstName}! Please enter your KU email address`;
+            document.getElementById("emailInput").placeholder = `Hi ${user.noDr ? "" : "Dr. "}${firstName}! Please enter your KU email address`;
         }
 
         function verifyEmail() {
